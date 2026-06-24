@@ -76,13 +76,13 @@ xai/
 Read:
 
 ```text
-proposal.md
+@proposal.md
 ```
 
 Read:
 
 ```text
-EXPERIMENTAL_PLAN.md
+@EXPERIMENTAL_PLAN.md
 ```
 
 Read:
