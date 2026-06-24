@@ -28,9 +28,6 @@
 - Hình nền minh hoạ: collage gồm ảnh review nhà hàng (món ăn, không gian) kết hợp đoạn bình luận tiếng Việt
 - Logo trường (nếu có)
 
-**Ghi chú cho người trình bày:**
-Giới thiệu ngắn gọn: "Đây là báo cáo tiến độ dự án nghiên cứu kết hợp ảnh và văn bản bình luận để dự đoán điểm đánh giá nhà hàng, với trọng tâm vào khả năng giải thích của mô hình."
-
 ---
 
 # Slide 2
@@ -54,9 +51,6 @@ Giới thiệu ngắn gọn: "Đây là báo cáo tiến độ dự án nghiên 
 
 **Yếu tố hình ảnh:**
 - Dạng danh sách dọc hoặc timeline ngang, đánh số rõ ràng, sử dụng icon cho từng mục
-
-**Ghi chú cho người trình bày:**
-"Bài trình bày sẽ đi theo luồng: từ bài toán, qua dữ liệu, đến thiết kế kiến trúc và phương pháp luận, rồi trình bày kết quả 21 thí nghiệm đã hoàn thành, và kết thúc bằng kế hoạch cho phần Explainable AI."
 
 ---
 
@@ -89,9 +83,6 @@ Hình:
 Ví dụ review Foody với ảnh món ăn và bình luận tiếng Việt
 (sẽ bổ sung sau — chụp màn hình từ Foody.vn)
 
-**Ghi chú cho người trình bày:**
-"Dự án này xây dựng hệ thống dự đoán 5 điểm đánh giá nhà hàng từ cặp dữ liệu ảnh và bình luận tiếng Việt. Đây là bài toán hồi quy đa đầu ra trên dữ liệu đa phương thức."
-
 ---
 
 # Slide 4
@@ -110,9 +101,6 @@ Tại sao cần multimodal:
 **Yếu tố hình ảnh:**
 - Highlight rằng ảnh cho biết food/atmosphere, text cho biết service/price
 - Sơ đồ 2 cột: "Ảnh → food, atmosphere" vs "Text → service, price, overall"
-
-**Ghi chú cho người trình bày:**
-"Một bình luận nói 'đồ ăn ngon nhưng giá hơi chát' kết hợp với ảnh món ăn đẹp mắt sẽ cho mô hình thông tin phong phú hơn nhiều so với chỉ dùng một nguồn. Dự án này xây dựng hệ thống có thể tận dụng cả hai nguồn thông tin, đồng thời giải thích được tại sao mô hình đưa ra dự đoán đó."
 
 ---
 
@@ -137,9 +125,6 @@ Hình:
 Sơ đồ minh hoạ: Input (ảnh + text) → Model → Prediction + Explanation (heatmap trên ảnh, highlight trên text)
 (sẽ bổ sung sau)
 
-**Ghi chú cho người trình bày:**
-"Phần XAI chưa được implement nhưng đã có thiết kế rõ ràng. Em sẽ trình bày chi tiết kế hoạch ở phần cuối."
-
 ---
 
 # Slide 6
@@ -160,9 +145,6 @@ Sơ đồ minh hoạ: Input (ảnh + text) → Model → Prediction + Explanatio
 **Yếu tố hình ảnh:**
 - Bảng 4 dòng, font lớn, mỗi dòng một icon minh hoạ
 
-**Ghi chú cho người trình bày:**
-"Bốn kỹ thuật này phủ 4 cấp độ giải thích: vùng ảnh, token văn bản, tỷ lệ đóng góp modality, và giải thích cục bộ. Chi tiết kế hoạch sẽ trình bày ở phần cuối."
-
 ---
 
 # Slide 7
@@ -182,9 +164,6 @@ Pipeline thu thập:
 **Yếu tố hình ảnh:**
 - Sơ đồ pipeline: Raw data → Cleaning → 9.946 reviews
 - Bảng thống kê gọn: 300 nhà hàng, 11.111 review thô → 9.946 review sạch
-
-**Ghi chú cho người trình bày:**
-"Bộ dữ liệu không có sẵn mà được xây dựng từ đầu. Pipeline làm sạch loại bỏ hơn 1.100 review và gần 2.500 ảnh không hợp lệ."
 
 ---
 
@@ -212,9 +191,6 @@ Hình:
 Phân bố điểm đánh giá theo 5 tiêu chí (histogram)
 (sẽ bổ sung sau)
 
-**Ghi chú cho người trình bày:**
-"Nhãn overall_satisfaction được sinh bằng rule engine có bằng chứng giải thích — đây cũng là một đóng góp của dự án. Mỗi review có overall_evidence giải thích vì sao nhãn được điều chỉnh."
-
 ---
 
 # Slide 9
@@ -241,9 +217,6 @@ Nguyên tắc:
 **Yếu tố hình ảnh:**
 - Biểu đồ tròn hoặc thanh ngang chia 80/10/10
 - Nhấn mạnh: "Test set LOCKED" với icon khoá
-
-**Ghi chú cho người trình bày:**
-"Tất cả 21 thí nghiệm đã hoàn thành đều được đánh giá trên cùng một tập Validation. Test set chỉ được dùng ở Phase 6 cho một số cấu hình tiềm năng nhất."
 
 ---
 
@@ -278,9 +251,6 @@ Hình:
 Architecture diagram
 (sẽ bổ sung sau — vẽ sơ đồ kiến trúc chuyên nghiệp)
 
-**Ghi chú cho người trình bày:**
-"Kiến trúc gồm 3 nhánh chính. Hai encoder riêng biệt trích xuất đặc trưng từ text và image, sau đó fusion layer kết hợp chúng lại."
-
 ---
 
 # Slide 11
@@ -304,9 +274,6 @@ Lý do:
 **Yếu tố hình ảnh:**
 - Sơ đồ 3 bước theo timeline: Step 1 (Text) → Step 2 (Image) → Step 3 (Fusion)
 - Icon đóng băng (❄️) cho Step 3
-
-**Ghi chú cho người trình bày:**
-"Mỗi nhánh được huấn luyện riêng trước, rồi ghép lại và chỉ train phần fusion. Cách này giúp kiểm soát tốt và isolate đóng góp của từng thành phần."
 
 ---
 
@@ -339,9 +306,6 @@ features = (features * mask).sum(dim=1) / num_images.clamp(min=1)
 **Yếu tố hình ảnh:**
 - Minh hoạ: 4 ảnh review → encode từng ảnh → masked mean → 1 vector đặc trưng
 
-**Ghi chú cho người trình bày:**
-"Điểm đặc biệt là mỗi review có số ảnh khác nhau. Chúng em dùng masked mean pooling để chỉ tính trung bình trên ảnh thực sự, tránh ảnh padding ảnh hưởng kết quả."
-
 ---
 
 # Slide 13
@@ -359,9 +323,6 @@ features = (features * mask).sum(dim=1) / num_images.clamp(min=1)
 
 **Yếu tố hình ảnh:**
 - Sơ đồ: Raw text → Tokenizer → Token IDs → Transformer Encoder → CLS embedding
-
-**Ghi chú cho người trình bày:**
-"Text branch đơn giản hơn image branch: tokenize bình luận, đưa qua transformer encoder, lấy CLS token hoặc pooler_output làm đặc trưng văn bản."
 
 ---
 
@@ -383,9 +344,6 @@ features = (features * mask).sum(dim=1) / num_images.clamp(min=1)
 
 **Yếu tố hình ảnh:**
 - Sơ đồ nhỏ cho từng fusion mechanism (đặt cạnh nhau để so sánh)
-
-**Ghi chú cho người trình bày:**
-"Từ Concat đơn giản nhất đến Cross-Attention phức tạp nhất — mỗi cơ chế đều đã được implement đầy đủ trong code và đánh giá trong ablation study."
 
 ---
 
@@ -415,9 +373,6 @@ Nguyên tắc:
 - Mỗi phase hiển thị: biến thay đổi (đổi màu) + biến cố định (xám)
 - Mũi tên nối: "Winner từ Phase trước → Fixed cho Phase sau"
 
-**Ghi chú cho người trình bày:**
-"Đây là điểm mấu chốt: em không chọn mô hình ngẫu nhiên. Mỗi thí nghiệm trả lời một câu hỏi nghiên cứu cụ thể. Mỗi kết quả dẫn đến quyết định có bằng chứng cho bước tiếp theo. Phương pháp này được sử dụng rộng rãi trong nghiên cứu deep learning và mạnh hơn brute-force search vì mọi kết quả đều có ý nghĩa khoa học."
-
 ---
 
 # Slide 16
@@ -442,9 +397,6 @@ Nguyên tắc:
 **Yếu tố hình ảnh:**
 - Bảng rõ ràng, font lớn
 - Highlight cột "Biến thay đổi" để nhấn mạnh chỉ thay đổi 1 biến mỗi phase
-
-**Ghi chú cho người trình bày:**
-"21 thí nghiệm, 7 phase, mỗi phase chỉ thay đổi 1 biến. Đây là phương pháp controlled experiment chuẩn."
 
 ---
 
@@ -473,9 +425,6 @@ Hình:
 Biểu đồ bar so sánh Mean MAE của 3 baselines
 (sẽ bổ sung sau — hiện chưa có metrics cho EXP_010, EXP_011, EXP_012 trong repo)
 
-**Ghi chú cho người trình bày:**
-"Phase 1 thiết lập mốc để đo lường mọi cải tiến sau này. EXP_012 đóng vai trò anchor: mọi kết quả đều được tính % improvement so với nó."
-
 ---
 
 # Slide 18
@@ -502,9 +451,6 @@ Cố định: Text = XLM-R, Fusion = Concat, Loss = MSE
 **Yếu tố hình ảnh:**
 - Bảng 4 dòng, mỗi backbone một dòng với giải thích ngắn
 
-**Ghi chú cho người trình bày:**
-"Bốn ứng viên đại diện cho 4 họ kiến trúc khác nhau: CNN truyền thống (EfficientNet), modern CNN (ConvNeXt), hierarchical transformer (Swin), và vision-language pretrained (SigLIP). Mỗi cái có lý do cụ thể để thử trên bài toán review ảnh ăn uống."
-
 ---
 
 # Slide 19
@@ -527,9 +473,6 @@ Cố định: Text = XLM-R, Fusion = Concat, Loss = MSE
 
 Chèn hình:
 02_image_backbone_comparison.png
-
-**Ghi chú cho người trình bày:**
-"Swin-B dẫn đầu ở mọi metric. Kiến trúc hierarchical transformer giúp nó nắm bắt tốt cả chi tiết cục bộ (hình thức món ăn) lẫn bối cảnh toàn cục (không gian quán). SigLIP xếp thứ hai rất sát, nhưng Swin-B ổn định hơn. EfficientNet-B3 tuy hiệu quả về compute nhưng CNN truyền thống thua sút so với Transformer trong bài toán này."
 
 ---
 
@@ -561,9 +504,6 @@ Cố định: Image = Swin-B (winner Phase 2), Fusion = Concat, Loss = MSE
 **Yếu tố hình ảnh:**
 - Bảng 3 dòng, mỗi text model một dòng
 
-**Ghi chú cho người trình bày:**
-"Ba ứng viên đại diện cho 3 chiến lược: multilingual general (XLM-R), Vietnamese-specific general (PhoBERT), Vietnamese social-media specific (ViSoBERT). Câu hỏi là: specialized pretraining có giúp ích cho bài toán review tiếng Việt không?"
-
 ---
 
 # Slide 21
@@ -586,9 +526,6 @@ Cố định: Image = Swin-B (winner Phase 2), Fusion = Concat, Loss = MSE
 
 Chèn hình:
 03_text_backbone_comparison.png
-
-**Ghi chú cho người trình bày:**
-"Đây là kết quả ấn tượng nhất trong toàn bộ ablation. PhoBERT kết hợp Swin-B tạo sự cộng hưởng cực mạnh: R² nhảy từ 0.49 lên 0.62, nghĩa là mô hình giải thích được 62% phương sai thay vì 49%. Điều này chứng minh rằng mô hình tiếng Việt thuần túy thực sự vượt trội so với multilingual cho bài toán review ẩm thực Việt Nam. ViSoBERT dù cũng chuyên tiếng Việt nhưng có dấu hiệu overfit nhanh."
 
 ---
 
@@ -613,9 +550,6 @@ Vấn đề cốt lõi: Ảnh review có độ tin cậy không đồng đều �
 
 **Yếu tố hình ảnh:**
 - Danh sách 5 fusion methods, mỗi cái một dòng mô tả ngắn
-
-**Ghi chú cho người trình bày:**
-"Từ Concat đơn giản nhất đến Cross-Attention phức tạp nhất, mỗi cơ chế giải quyết vấn đề modality reliability theo cách khác nhau."
 
 ---
 
@@ -644,9 +578,6 @@ Cross-Attention chiến thắng sát sao:
 
 Chèn hình:
 04_fusion_comparison.png
-
-**Ghi chú cho người trình bày:**
-"Cross-Attention cho phép text liên tục rà soát ảnh và ngược lại, tìm được những liên kết sâu giữa từ khoá và vùng ảnh. GMU và FiLM gây thất vọng — tỷ lệ tin cậy đơn giản không hoạt động tốt bằng interaction sâu. Gated Cross-Modal xếp nhì rất sát — đây cũng là ứng viên mạnh."
 
 ---
 
@@ -677,9 +608,6 @@ Cố định: Swin-B + PhoBERT + Cross-Attention
 **Yếu tố hình ảnh:**
 - Bảng 4 loss functions
 
-**Ghi chú cho người trình bày:**
-"MSE phạt outlier rất nặng vì bình phương sai số. Huber, Log-Cosh, và Uncertainty Weighted đều là các chiến lược giảm ảnh hưởng của outlier và cân bằng multi-task."
-
 ---
 
 # Slide 25
@@ -703,9 +631,6 @@ Cố định: Swin-B + PhoBERT + Cross-Attention
 
 Chèn hình:
 05_loss_comparison.png
-
-**Ghi chú cho người trình bày:**
-"Phase 5 cho thấy kiến trúc đã gần tối ưu — loss function chỉ cải thiện biên rất nhỏ (0.0001). Điều này chứng minh rằng phần lớn improvement đến từ backbone và fusion design, không phải loss tuning. Tuy nhiên, Log-Cosh cho Overall MAE tốt nhất nên em chọn nó."
 
 ---
 
@@ -739,9 +664,6 @@ Hình:
 Validation vs Test comparison chart (nếu có test metrics)
 (sẽ bổ sung sau)
 
-**Ghi chú cho người trình bày:**
-"Phase 6 rất quan trọng vì nó kiểm tra liệu cách chọn tuần tự của chúng em có thực sự tối ưu hay không. Đây là cách làm chuẩn trong nghiên cứu ablation study."
-
 ---
 
 # Slide 27
@@ -768,9 +690,6 @@ Top 10 thí nghiệm theo Mean MAE (Validation):
 
 Chèn hình:
 01_overall_leaderboard.png
-
-**Ghi chú cho người trình bày:**
-"Top 5 đều cluster quanh Mean MAE 1.108 — đây là vùng tối ưu hiện tại. Điều thú vị là tất cả đều dùng Swin-B + PhoBERT, chứng tỏ backbone selection ở Phase 2-3 là quyết định quan trọng nhất."
 
 ---
 
@@ -799,9 +718,6 @@ Xu hướng: **Mean MAE giảm đều đặn qua mỗi phase**, chứng minh ph�
 Chèn hình:
 06_performance_evolution.png
 
-**Ghi chú cho người trình bày:**
-"Biểu đồ cho thấy xu hướng cải thiện liên tục. Bước nhảy lớn nhất là khi chuyển từ XLM-R sang PhoBERT — chứng minh rằng mô hình ngôn ngữ chuyên biệt tiếng Việt thực sự quan trọng cho bài toán này. Fusion và Loss cải thiện nhỏ hơn nhưng nhất quán."
-
 ---
 
 # Slide 29
@@ -820,9 +736,6 @@ Top 3 models so sánh trên 5 tiêu chí (Overall, Food, Price, Service, Atmosph
 
 Chèn hình:
 07_top3_radar_chart.png
-
-**Ghi chú cho người trình bày:**
-"Radar chart cho thấy top 3 rất đồng đều — không có mô hình nào vượt trội ở một tiêu chí nhưng yếu ở tiêu chí khác. Điều này cho thấy kiến trúc Swin-B + PhoBERT + Cross-Attention balance tốt trên cả 5 đầu ra."
 
 ---
 
@@ -845,9 +758,6 @@ Top improvements:
 
 Chèn hình:
 improvement_vs_baseline.png
-
-**Ghi chú cho người trình bày:**
-"Biểu đồ này cho phép nhìn trực quan: mỗi thanh xanh là % cải thiện so với baseline ban đầu. Rõ ràng nhất là sau khi thay PhoBERT và dùng Cross-Attention fusion."
 
 ---
 
@@ -872,9 +782,6 @@ improvement_vs_baseline.png
 - Bảng tóm tắt to, rõ ràng
 - Highlight cấu hình chiến thắng
 - Mỗi thành phần liên kết ngược với Phase quyết định
-
-**Ghi chú cho người trình bày:**
-"Mỗi thành phần được chọn qua một Phase ablation riêng biệt, với bằng chứng thực nghiệm rõ ràng."
 
 ---
 
@@ -904,9 +811,6 @@ improvement_vs_baseline.png
 - Bảng metrics, font lớn
 - Highlight Mean MAE và R² Overall
 
-**Ghi chú cho người trình bày:**
-"Tổng hợp lại, cấu hình tối ưu là Swin-B + PhoBERT + Cross-Attention + Log-Cosh. Mean MAE chỉ 1.108 trên thang 10 điểm, tức trung bình chỉ sai khoảng 1.1 điểm."
-
 ---
 
 # Slide 33
@@ -934,9 +838,6 @@ improvement_vs_baseline.png
 - Dùng icon ✅ ⏳ ❌ rõ ràng
 - Thanh tiến độ tổng: ~70%
 
-**Ghi chú cho người trình bày:**
-"Phần training đã hoàn thành toàn bộ. Phần còn lại là multi-seed validation, test evaluation chính thức, và quan trọng nhất là module XAI."
-
 ---
 
 # Slide 34
@@ -962,9 +863,6 @@ Hình:
 Minh hoạ Grad-CAM heatmap trên ảnh món ăn (ví dụ từ literature)
 (sẽ bổ sung sau)
 
-**Ghi chú cho người trình bày:**
-"Bốn kỹ thuật phủ 4 cấp độ giải thích: vùng ảnh, token văn bản, tỷ lệ đóng góp modality, và giải thích cục bộ."
-
 ---
 
 # Slide 35
@@ -987,9 +885,6 @@ Hình:
 Minh hoạ attention visualization trên text review (ví dụ)
 (sẽ bổ sung sau)
 
-**Ghi chú cho người trình bày:**
-"XAI sẽ trả lời 4 câu hỏi then chốt: (1) mô hình nhìn vào đâu trên ảnh, (2) từ nào quan trọng trong bình luận, (3) modality nào đóng góp nhiều hơn, (4) tại sao sai ở sample cụ thể. Đây là phần thiết yếu để dự án xứng đáng với chữ 'Explainable' trong tên đề tài."
-
 ---
 
 # Slide 36
@@ -1009,9 +904,6 @@ Minh hoạ attention visualization trên text review (ví dụ)
 **Yếu tố hình ảnh:**
 - Icon: microscope (khoa học)
 - Danh sách 4 bullet points, font lớn
-
-**Ghi chú cho người trình bày:**
-"Về mặt khoa học, phương pháp ablation có hệ thống cho 21 thí nghiệm là đóng góp chính. Kết quả PhoBERT vượt trội XLM-R trên bài toán review ẩm thực Việt Nam cũng là finding quan trọng."
 
 ---
 
@@ -1037,9 +929,6 @@ Minh hoạ attention visualization trên text review (ví dụ)
 **Yếu tố hình ảnh:**
 - 2 cột: gear (kỹ thuật) + lightbulb (ứng dụng)
 
-**Ghi chú cho người trình bày:**
-"Về mặt kỹ thuật, toàn bộ pipeline từ crawl đến evaluate đã hoạt động. Về ứng dụng, hệ thống có thể giải thích dự đoán — đây là yêu cầu quan trọng trong thực tế."
-
 ---
 
 # Slide 38
@@ -1061,9 +950,6 @@ Xin cảm ơn thầy/cô. Em sẵn sàng trả lời câu hỏi.
 **Yếu tố hình ảnh:**
 - Layout sạch, không quá nhiều text
 - Email / Contact info
-
-**Ghi chú cho người trình bày:**
-"Tóm lại, dự án đã hoàn thành phần training với 21 thí nghiệm có hệ thống. Công việc còn lại tập trung vào validation cuối cùng và XAI. Em sẵn sàng trả lời câu hỏi."
 
 ---
 
@@ -1242,9 +1128,6 @@ Chèn hình:
 validation_vs_test_comparison.png
 (chỉ có nếu experiments Phase 6 đã chạy test)
 
-**Ghi chú cho người trình bày:**
-"Generalization gap cho thấy mô hình có overfit không. Gap nhỏ → mô hình generalize tốt."
-
 ---
 
 # Backup Slide B6
@@ -1313,9 +1196,6 @@ validation_vs_test_comparison.png
 - GMU: Arevalo et al. (2017) — Gated Multimodal Unit for sample-level modality weighting
 - FiLM: Perez et al. (2018) — Feature-wise Linear Modulation
 - Cross-Attention: Vaswani et al. (2017) — Transformer attention applied cross-modally
-
-**Ghi chú cho người trình bày:**
-"Mọi lựa chọn đều dựa trên literature review và phân tích đặc điểm dataset. Không có model nào được chọn ngẫu nhiên."
 
 ---
 
