@@ -1,597 +1,826 @@
 # ROLE
 
-You are a Senior AI Research Scientist, Multimodal Deep Learning Engineer, Research Methodology Expert, and Research Codebase Architect.
+You are a Senior Machine Learning Research Engineer, Data Visualization Specialist, and Research Reproducibility Engineer.
 
 You specialize in:
 
-- Computer Vision
-- NLP
-- Multimodal Deep Learning
-- Explainable AI
-- PyTorch
-- HuggingFace Transformers
-- timm
-- Experiment Design
-- Reproducibility Engineering
-- Research Proposal Writing
-- Scientific Methodology
-- MLOps for Research
-- Technical Writing
+- PyTorch experiment analysis
+- Multimodal deep learning experiment tracking
+- Research leaderboard generation
+- Ablation study visualization
+- Google Colab workflows
+- Google Drive artifact management
+- pandas, matplotlib, seaborn-free visualization
+- Jupyter Notebook generation
+- Scientific reporting for thesis projects
 
-You think like a researcher and thesis advisor.
-
-Your responsibility is not only to propose experiments, but also to ensure that the experiment roadmap is:
-
-- scientifically meaningful
-- computationally practical
-- reproducible
-- traceable
-- implementation-ready
-- suitable for thesis defense
+Your task is to understand the existing codebase and experiment artifact structure, then create a complete notebook that automatically reads experiment outputs and generates tables/figures for thesis reporting.
 
 ---
 
 # GOAL
 
-Read the current @proposal.md carefully and understand its philosophy, methodology, and overall structure.
+Read the entire codebase and understand:
 
-Then improve and refine the proposal based on the feedback below.
+- how the project is implemented
+- how experiments are named
+- how the 21 experiments were trained
+- how experiment folders are structured
+- what files each experiment produces
+- where outputs are stored in Google Drive
+- what metrics are available in `metrics.json`
+- which experiments belong to which phase
+- which experiments are validation-only
+- which Phase 6 experiments also contain test metrics and test figures
 
-The goal is NOT to rewrite everything from scratch.
-
-The goal is to transform the current proposal from:
+Then create a Jupyter notebook file:
 
 ```text
-Research Roadmap
+notebooks/generate_experiment_leaderboard.ipynb
 ```
 
-into:
+This notebook must be runnable in Google Colab.
+
+The notebook should automatically read all experiment folders from:
+
+```python
+DRIVE_ROOT = "/content/drive/MyDrive/SE365"
+EXPERIMENTS_DIR = f"{DRIVE_ROOT}/experiments"
+REPORTS_DIR = f"{DRIVE_ROOT}/reports"
+```
+
+Then generate the following outputs.
+
+---
+
+# REQUIRED FIGURES
+
+The notebook must generate exactly these 7 figures:
 
 ```text
-Implementation-Ready Experiment Plan
+1. Overall Leaderboard
+2. Image Backbone Comparison
+3. Text Backbone Comparison
+4. Fusion Comparison
+5. Loss Comparison
+6. Performance Evolution Across Phases
+7. Top-3 Radar Chart
 ```
 
-so that a future AI coding agent can directly implement the experiments without requiring many follow-up questions.
+Recommended save paths:
 
-The final proposal should clearly answer:
+```text
+/content/drive/MyDrive/SE365/reports/figures/01_overall_leaderboard.png
+/content/drive/MyDrive/SE365/reports/figures/02_image_backbone_comparison.png
+/content/drive/MyDrive/SE365/reports/figures/03_text_backbone_comparison.png
+/content/drive/MyDrive/SE365/reports/figures/04_fusion_comparison.png
+/content/drive/MyDrive/SE365/reports/figures/05_loss_comparison.png
+/content/drive/MyDrive/SE365/reports/figures/06_performance_evolution.png
+/content/drive/MyDrive/SE365/reports/figures/07_top3_radar_chart.png
+```
 
-- What experiments should be trained first?
-- Which experiments are mandatory and which are optional?
-- Which image-text combinations are truly suitable for THIS dataset?
-- What conclusions can be claimed after each experiment?
-- Which experiments provide the highest research value?
-- Which experiments are high-risk and should be delayed?
-- How should experiments be organized for reproducibility?
-- How should future AI coding agents implement them?
+---
+
+# REQUIRED TABLES
+
+The notebook must generate exactly these 4 tables:
+
+```text
+1. Full Experiment Leaderboard
+2. Ablation Summary
+3. Validation vs Test Comparison
+4. Improvement vs Baseline
+```
+
+Recommended save paths:
+
+```text
+/content/drive/MyDrive/SE365/reports/tables/full_experiment_leaderboard.csv
+/content/drive/MyDrive/SE365/reports/tables/full_experiment_leaderboard.xlsx
+
+/content/drive/MyDrive/SE365/reports/tables/ablation_summary.csv
+/content/drive/MyDrive/SE365/reports/tables/ablation_summary.xlsx
+
+/content/drive/MyDrive/SE365/reports/tables/validation_vs_test_comparison.csv
+/content/drive/MyDrive/SE365/reports/tables/validation_vs_test_comparison.xlsx
+
+/content/drive/MyDrive/SE365/reports/tables/improvement_vs_baseline.csv
+/content/drive/MyDrive/SE365/reports/tables/improvement_vs_baseline.xlsx
+```
+
+Also generate:
+
+```text
+/content/drive/MyDrive/SE365/reports/experiment_report.md
+```
+
+summarizing key results.
 
 ---
 
 # CONTEXT
 
-Before doing anything, read:
+The project is an Explainable Multimodal Deep Learning system for Vietnamese restaurant review quality regression.
+
+Each experiment folder is located under:
 
 ```text
-@proposal.md
+/content/drive/MyDrive/SE365/experiments/<EXPERIMENT_ID>/
 ```
 
-from beginning to end.
-
-Understand:
-
-- phase structure
-- methodology
-- reproducibility strategy
-- artifact strategy
-- experiment folders
-- Colab + Drive + GitHub workflow
-- XAI strategy
-- current experiment roadmap
-
-Do NOT discard the current proposal.
-
-Refine it.
-
-Also read:
+Example experiment folders may look like:
 
 ```text
-@EXPERIMENTAL_PLAN.md
+EXP_010_text_only_xlmr_mse
+EXP_011_image_only_convnext_meanpool_mse
+EXP_012_multimodal_convnext_xlmr_concat_mse
+EXP_020B_swinb_xlmr_concat_mse
+EXP_020D_efficientnetb3_xlmr_concat_mse
+EXP_030B_bestimage_phobert_concat_mse
+EXP_030D_bestimage_visobert_concat_mse
+EXP_040B_bestimage_besttext_gmu_mse
+EXP_040C_bestimage_besttext_gatedcrossmodal_mse
+EXP_041A_bestimage_besttext_film_mse
+EXP_041B_bestimage_besttext_crossattention_mse
+EXP_050B_bestfusion_huber
+EXP_050C_bestfusion_logcosh
+EXP_051D_bestfusion_uncertaintyweighted
+EXP_060A_bestsequential_full_configuration
+EXP_060B_swinb_visobert_gmu_uncertainty
+EXP_060C_efficientnetb3_phobert_film_huber
+EXP_060D_efficientnetb3_visobert_crossattention_logcosh
+EXP_060E_convnext_phobert_gatedcrossmodal_autoweight
 ```
 
-and reuse useful ideas if they are scientifically sound.
+The exact folder list must be discovered automatically from Drive.
+
+Do not hard-code the number of experiments.
 
 ---
 
-# FEEDBACK TO INCORPORATE
+# EXPERIMENT FOLDER CONTENTS
 
-The current proposal is good at the research roadmap level.
+Each experiment folder may contain:
 
-However, experiments are too broad.
+```text
+config.yaml
+metrics.json
+predictions.csv
+train.log
+best_model_train_text.pth
+best_model_train_fusion.pth
+```
+
+Some Phase 6 experiments may additionally contain test outputs such as:
+
+```text
+test_metrics.json
+test_predictions.csv
+test_scatter_pred_vs_true.png
+test_mae_aspects.png
+test_error_distributions.png
+```
+
+The notebook must handle missing files gracefully.
+
+If a folder does not contain `metrics.json`, skip it and report it in a warning table.
+
+If a folder contains `test_metrics.json`, include it in the validation-vs-test comparison.
+
+If a folder does not contain `test_metrics.json`, leave test metric columns as `NaN`.
+
+---
+
+# METRICS FORMAT
+
+A typical `metrics.json` may contain keys such as:
+
+```json
+{
+  "loss": 2.8099678943031714,
+  "mae_food": 1.257565975189209,
+  "rmse_food": 1.745107650756836,
+  "r2_food": 0.4213736057281494,
+  "mae_price": 1.273634433746338,
+  "rmse_price": 1.7648751735687256,
+  "r2_price": 0.30262500047683716,
+  "mae_atmos": 1.2458659410476685,
+  "rmse_atmos": 1.6386243104934692,
+  "r2_atmos": 0.3081444501876831,
+  "mae_service": 1.2945499420166016,
+  "rmse_service": 1.7338619232177734,
+  "r2_service": 0.4136648178100586,
+  "mae_overall": 1.0923101902008057,
+  "rmse_overall": 1.484327793121338,
+  "r2_overall": 0.4589042067527771,
+  "mean_mae": 1.2327852964401245,
+  "overall_mae": 1.0923101902008057,
+  "aspect_mae": 1.2679040729999542
+}
+```
+
+The notebook must handle possible key variations:
+
+```text
+mean_mae
+overall_mae
+mae_overall
+aspect_mae
+mae_food
+mae_price
+mae_atmos
+mae_service
+rmse_overall
+r2_overall
+```
+
+If `overall_mae` is missing, use `mae_overall`.
+
+If `mean_mae` is missing, compute it from available target MAEs.
+
+If `aspect_mae` is missing, compute it from food/price/atmos/service MAEs.
+
+---
+
+# REQUIRED LOGIC
+
+## 1. Auto-discover experiments
+
+The notebook must scan:
+
+```python
+EXPERIMENTS_DIR
+```
+
+and find all subfolders.
+
+For each folder:
+
+- read `metrics.json`
+- optionally read `test_metrics.json`
+- optionally read `config.yaml`
+- infer components from experiment name and config
+
+---
+
+## 2. Infer experiment metadata
+
+For each experiment, infer:
+
+```text
+experiment_id
+phase
+image_backbone
+text_backbone
+fusion_method
+loss_function
+is_unimodal_text
+is_unimodal_image
+has_test_metrics
+```
+
+Use both:
+
+1. `config.yaml` if available
+2. experiment folder name fallback
+
+Examples:
+
+```text
+EXP_020D_efficientnetb3_xlmr_concat_mse
+```
+
+should infer:
+
+```text
+phase = Image Backbone Ablation
+image_backbone = EfficientNet-B3
+text_backbone = XLM-R
+fusion_method = Concat
+loss_function = MSE
+```
+
+```text
+EXP_040B_bestimage_besttext_gmu_mse
+```
+
+should infer:
+
+```text
+phase = Fusion Ablation
+fusion_method = GMU
+loss_function = MSE
+```
+
+```text
+EXP_060E_convnext_phobert_gatedcrossmodal_autoweight
+```
+
+should infer:
+
+```text
+phase = Promising Combination
+image_backbone = ConvNeXt
+text_backbone = PhoBERT
+fusion_method = Gated Cross-Modal
+loss_function = AutoWeight
+```
+
+The notebook should include robust helper functions for parsing folder names.
+
+---
+
+## 3. Full Experiment Leaderboard
+
+Create a dataframe sorted by:
+
+```text
+mean_mae ascending
+```
+
+Columns should include:
+
+```text
+rank
+experiment_id
+phase
+image_backbone
+text_backbone
+fusion_method
+loss_function
+mean_mae
+overall_mae
+aspect_mae
+mae_food
+mae_price
+mae_service
+mae_atmos
+rmse_overall
+r2_overall
+has_test_metrics
+```
+
+Save to CSV and Excel.
+
+Also display top 10 in notebook.
+
+---
+
+## 4. Overall Leaderboard Figure
+
+Create a horizontal bar chart of top 15 experiments by `mean_mae`.
+
+Use matplotlib only.
+
+Do not use seaborn.
+
+Annotate each bar with the `mean_mae` value.
+
+Save as PNG.
+
+---
+
+## 5. Image Backbone Comparison
+
+Use experiments from image ablation phase.
+
+Include experiments whose IDs contain:
+
+```text
+EXP_020
+```
+
+or whose phase is inferred as:
+
+```text
+Image Backbone Ablation
+```
+
+Compare `mean_mae` by image backbone.
+
+If multiple experiments have the same backbone, keep the best one.
+
+Save:
+
+```text
+image_backbone_comparison.csv
+image_backbone_comparison.png
+```
+
+---
+
+## 6. Text Backbone Comparison
+
+Use experiments from text ablation phase.
+
+Include experiments whose IDs contain:
+
+```text
+EXP_030
+```
+
+or whose phase is inferred as:
+
+```text
+Text Backbone Ablation
+```
+
+Compare `mean_mae` by text backbone.
+
+If multiple experiments have the same text backbone, keep the best one.
+
+Save:
+
+```text
+text_backbone_comparison.csv
+text_backbone_comparison.png
+```
+
+---
+
+## 7. Fusion Comparison
+
+Use experiments from fusion phase.
+
+Include experiments whose IDs contain:
+
+```text
+EXP_040
+EXP_041
+```
+
+or whose phase is inferred as fusion-related.
+
+Compare `mean_mae` by fusion method.
+
+If multiple experiments use the same fusion method, keep the best one.
+
+Save:
+
+```text
+fusion_comparison.csv
+fusion_comparison.png
+```
+
+---
+
+## 8. Loss Comparison
+
+Use experiments from loss phase.
+
+Include experiments whose IDs contain:
+
+```text
+EXP_050
+EXP_051
+```
+
+or whose phase is inferred as loss-related.
+
+Compare `mean_mae` by loss function.
+
+If multiple experiments use the same loss, keep the best one.
+
+Save:
+
+```text
+loss_comparison.csv
+loss_comparison.png
+```
+
+---
+
+## 9. Performance Evolution Across Phases
+
+Create one table and one line plot showing best `mean_mae` by phase.
+
+Phases should be ordered logically:
+
+```text
+Baseline
+Image Ablation
+Text Ablation
+Fusion Ablation
+Loss Ablation
+Promising Combination
+```
+
+For each phase, select the best experiment by `mean_mae`.
+
+Save:
+
+```text
+performance_evolution.csv
+performance_evolution.png
+```
+
+---
+
+## 10. Top-3 Radar Chart
+
+Take top 3 experiments by `mean_mae`.
+
+Plot a radar chart over five target MAEs:
+
+```text
+overall
+food
+price
+service
+atmosphere
+```
+
+Since lower MAE is better, either:
+
+- plot inverted normalized score, or
+- clearly label that lower value is better.
+
+Prefer normalized score:
+
+```text
+score = 1 - normalized_mae
+```
+
+Save:
+
+```text
+top3_radar_chart.png
+```
+
+---
+
+## 11. Ablation Summary Table
+
+Create a table summarizing each ablation phase:
+
+```text
+phase
+reference_experiment
+best_experiment
+reference_mean_mae
+best_mean_mae
+absolute_improvement
+relative_improvement_percent
+interpretation
+```
 
 For example:
 
 ```text
-EXP_020_image_backbone_ablation
-
-Image branch:
-ConvNeXt
-Swin-B
-EfficientNet-B3
-CLIP visual encoder
-SigLIP
-...
+Image Ablation:
+reference = EXP_012_multimodal_convnext_xlmr_concat_mse
+best = best among EXP_020*
 ```
 
-This is too vague.
+Text Ablation:
 
-I need each experiment to correspond to ONE trainable configuration.
+```text
+reference = best image config with XLM-R
+best = best among EXP_030*
+```
 
-A future AI coding agent should be able to look at one experiment and immediately know what to train.
+Fusion Ablation:
+
+```text
+reference = concat
+best = best among EXP_040* and EXP_041*
+```
+
+Loss Ablation:
+
+```text
+reference = MSE
+best = best among EXP_050* and EXP_051*
+```
+
+Promising Combination:
+
+```text
+reference = best sequential config
+best = best among EXP_060*
+```
+
+Save to CSV and Excel.
 
 ---
 
-# REQUIREMENTS
+## 12. Validation vs Test Comparison
 
-## 1. Transform Phase-level Experiments into Trainable Experiments
-
-Keep:
+For experiments with `test_metrics.json`, create:
 
 ```text
-Phase
+experiment_id
+phase
+val_mean_mae
+test_mean_mae
+val_overall_mae
+test_overall_mae
+generalization_gap_mean_mae
+generalization_gap_overall_mae
 ```
 
-as research groups.
+Save to CSV and Excel.
 
-But inside each phase, explicitly enumerate concrete trainable experiments.
+Create a bar chart if at least two experiments have test metrics.
 
-Example:
-
-Instead of:
+Save:
 
 ```text
-EXP_020_image_backbone_ablation
-```
-
-write:
-
-```text
-EXP_020_convnext_phobert_concat_mse
-EXP_021_swinb_phobert_concat_mse
-EXP_022_siglip_phobert_concat_mse
-EXP_023_efficientnetb3_phobert_concat_mse
-```
-
-Each experiment must correspond to:
-
-```text
-1 image backbone
-+
-1 image feature strategy
-+
-1 multi-image aggregation strategy
-+
-1 text backbone
-+
-1 text pooling strategy
-+
-1 fusion method
-+
-1 loss function
-+
-1 dataset version
-+
-1 seed
-```
-
-Each experiment should have:
-
-- experiment ID
-- research question
-- image branch
-- text branch
-- fusion method
-- loss function
-- fixed components
-- variable component
-- expected claim
-- expected artifacts
-
----
-
-## 2. Add Priority Levels
-
-Every experiment must have:
-
-```text
-P0 = Must Run
-P1 = Strongly Recommended
-P2 = Optional
-P3 = Stretch / High-Risk
-```
-
-Add a table:
-
-| Priority | Experiment ID | Image | Text | Fusion | Loss | Purpose |
-
-Also create:
-
-```text
-Recommended Training Order
-```
-
-so that I know exactly which experiment should be trained first.
-
----
-
-## 3. Compute-Aware Experiment Design
-
-Do not generate too many experiments.
-
-Prefer:
-
-```text
-Small number of high-value experiments
-```
-
-instead of:
-
-```text
-Huge number of low-value experiments
-```
-
-Think in terms of:
-
-```text
-Must-have
-Should-have
-Nice-to-have
-```
-
-Avoid exhaustive search.
-
----
-
-## 4. Dataset-Aware Recommendations
-
-Very important.
-
-The dataset characteristics are:
-
-- Vietnamese reviews
-- Text mainly Vietnamese
-- User-generated and noisy
-- Images are noisy and heterogeneous
-- One review contains multiple images
-- Text modality is generally more reliable than image modality
-
-Therefore, recommend components based on the dataset characteristics.
-
-Do not recommend models simply because they are popular.
-
-Always explain WHY.
-
----
-
-## 5. Text Branch Recommendations
-
-Prioritize:
-
-### P0
-
-```text
-PhoBERT
-ViDeBERTa / ViBERT
-```
-
-### P1
-
-```text
-XLM-R
-ViSoBERT
-mDeBERTa-v3
-```
-
-### P2
-
-Other multilingual models
-
-Explain why each model is suitable.
-
-Avoid recommending text models that are unlikely to provide significant gains.
-
----
-
-## 6. Image Branch Recommendations
-
-Considering:
-
-- noisy images
-- moderate dataset size
-- multiple images per review
-
-Prioritize:
-
-### P0
-
-```text
-ConvNeXt
-Swin-B
-```
-
-### P1
-
-```text
-SigLIP
-EfficientNet-B3
-```
-
-### P2
-
-```text
-EVA-CLIP
-ViT-L
-MobileViT
-```
-
-High-risk:
-
-large CLIP variants.
-
-Avoid suggesting expensive models with low expected return.
-
-Explain why.
-
----
-
-## 7. Fusion Recommendations
-
-Because image modality is noisy, prioritize:
-
-### P0
-
-```text
-Concat + MLP
-GMU
-```
-
-### P1
-
-```text
-FiLM
-```
-
-### P2
-
-```text
-Cross-Attention
-```
-
-Cross-Attention should be marked:
-
-```text
-High-risk
-Requires architecture refactoring
-Needs token-level and patch-level features
-Expensive
-```
-
-Do not place Cross-Attention in P0.
-
----
-
-## 8. Loss Function Recommendations
-
-Prioritize:
-
-### P0
-
-```text
-MSE
-Huber
-```
-
-### P1
-
-```text
-Weighted Huber
-SmoothL1
-```
-
-### P2
-
-```text
-Uncertainty-weighted multitask loss
-```
-
-Do NOT recommend:
-
-```text
-Focal Loss
-Weighted Cross Entropy
-```
-
-unless auxiliary classification heads are introduced.
-
-Explain why.
-
----
-
-## 9. Multi-image Aggregation
-
-Because one review contains multiple images, explicitly include:
-
-### P0
-
-```text
-Mean Pooling across image embeddings
-```
-
-### P1
-
-```text
-Attention Pooling across image embeddings
-```
-
-Avoid overly complicated aggregation methods.
-
----
-
-## 10. Minimum Viable Experiment Plan
-
-Create a section:
-
-```text
-Minimum Viable Experiment Plan
-```
-
-containing only P0 experiments.
-
-The goal is:
-
-```text
-Finish the thesis even with limited GPU budget.
-```
-
-Prefer:
-
-```text
-10–15 experiments maximum.
+validation_vs_test_comparison.png
 ```
 
 ---
 
-## 11. Extended Experiment Plan
-
-Create another section:
-
-```text
-Extended Experiment Plan
-```
-
-containing:
-
-P1 and P2 experiments.
-
-These experiments are optional and should only be trained if compute resources permit.
-
----
-
-## 12. Add Risk Level
-
-Every experiment should contain:
-
-```text
-Risk Level:
-Low
-Medium
-High
-```
-
-High-risk experiments:
-
-- Cross-Attention
-- EVA-CLIP
-- Large CLIP variants
-- Uncertainty-weighted multitask loss
-
----
-
-## 13. Strengthen Research Philosophy
-
-Make the proposal easier to present to lecturers.
-
-Clearly explain:
-
-### Why sequential ablation is used.
-
-### Why full factorial search is avoided.
-
-### Why promising full combinations are evaluated afterwards.
-
-### Why some models are prioritized over others.
-
-### Why text is expected to be more reliable than image.
-
-### Why adaptive fusion methods are important.
-
-### Why Huber loss is expected to help.
-
-### Why XAI should only be run after selecting the final model.
-
-The reader should understand:
-
-```text
-not only WHAT will be done,
-but WHY it will be done.
-```
-
----
-
-## 14. Improve Readability
-
-Make the proposal:
-
-- professional
-- coherent
-- logically structured
-- thesis-ready
-- easy for AI coding agents to follow
-
-Avoid huge blocks of vague recommendations.
+## 13. Improvement vs Baseline
 
 Use:
 
-- tables
-- experiment IDs
-- priorities
-- decision rules
-- expected conclusions
+```text
+EXP_012_multimodal_convnext_xlmr_concat_mse
+```
+
+as the main baseline if it exists.
+
+Otherwise use the earliest multimodal concat MSE experiment.
+
+For every experiment, compute:
+
+```text
+absolute_improvement = baseline_mean_mae - experiment_mean_mae
+relative_improvement_percent = absolute_improvement / baseline_mean_mae * 100
+```
+
+Save:
+
+```text
+improvement_vs_baseline.csv
+improvement_vs_baseline.xlsx
+improvement_vs_baseline.png
+```
+
+---
+
+# OUTPUT FOLDER STRUCTURE
+
+The notebook should create:
+
+```text
+/content/drive/MyDrive/SE365/reports/
+├── figures/
+│   ├── 01_overall_leaderboard.png
+│   ├── 02_image_backbone_comparison.png
+│   ├── 03_text_backbone_comparison.png
+│   ├── 04_fusion_comparison.png
+│   ├── 05_loss_comparison.png
+│   ├── 06_performance_evolution.png
+│   ├── 07_top3_radar_chart.png
+│   ├── validation_vs_test_comparison.png
+│   └── improvement_vs_baseline.png
+│
+├── tables/
+│   ├── full_experiment_leaderboard.csv
+│   ├── full_experiment_leaderboard.xlsx
+│   ├── ablation_summary.csv
+│   ├── ablation_summary.xlsx
+│   ├── validation_vs_test_comparison.csv
+│   ├── validation_vs_test_comparison.xlsx
+│   ├── improvement_vs_baseline.csv
+│   └── improvement_vs_baseline.xlsx
+│
+└── experiment_report.md
+```
+
+---
+
+# NOTEBOOK REQUIREMENTS
+
+The generated notebook must include:
+
+## Section 1: Setup
+
+- Mount Google Drive.
+- Define paths.
+- Create report folders.
+- Import required libraries.
+
+## Section 2: Experiment Discovery
+
+- Discover experiment folders.
+- Load metrics.
+- Load test metrics if available.
+- Load config if available.
+- Build dataframe.
+
+## Section 3: Metadata Parsing
+
+- Infer phase, image backbone, text backbone, fusion, and loss.
+
+## Section 4: Leaderboard
+
+- Build full leaderboard.
+- Save CSV/XLSX.
+- Plot overall leaderboard.
+
+## Section 5: Ablation Analysis
+
+- Image comparison.
+- Text comparison.
+- Fusion comparison.
+- Loss comparison.
+
+## Section 6: Performance Evolution
+
+- Best result per phase.
+- Line plot.
+
+## Section 7: Top-3 Radar Chart
+
+- Radar chart for top 3.
+
+## Section 8: Validation vs Test
+
+- Use `test_metrics.json` where available.
+
+## Section 9: Improvement vs Baseline
+
+- Compare all experiments against baseline.
+
+## Section 10: Markdown Report
+
+- Generate `experiment_report.md`.
+- Include summary of best model, best phase results, baseline improvement, and test comparison.
+
+## Section 11: Logic Checks
+
+Before finishing, include notebook cells that check:
+
+- number of discovered experiments
+- number of loaded metrics
+- missing metrics files
+- duplicated experiment IDs
+- missing required metric columns
+- whether baseline exists
+- whether Phase 6 test metrics exist
+- whether output files were successfully saved
 
 ---
 
 # CONSTRAINTS
 
-Do not rewrite the whole proposal unnecessarily.
+Do NOT run the notebook.
 
-Preserve the existing philosophy and good ideas.
+Only create the `.ipynb` file.
 
-Refine and improve them.
+After creating the notebook, inspect its own logic.
 
-Avoid generating hundreds of experiments.
+Check for:
 
-Prefer practical and high-value experiments.
+- path errors
+- missing imports
+- invalid JSON/YAML handling
+- invalid dataframe columns
+- divide-by-zero risk
+- missing metric key handling
+- matplotlib save path issues
+- radar chart logic
+- baseline fallback logic
+- empty dataframe handling
+- Excel writer dependency issues
 
-Recommendations must be grounded in:
+If there is any issue, fix the notebook before finalizing.
 
-- current codebase
-- dataset characteristics
-- compute constraints
-- research value
+Do not assume all experiments have the same metric keys.
 
-Do not recommend models that are unlikely to improve performance significantly but require excessive training cost.
+Do not assume all experiments have test metrics.
 
-Do not hallucinate unsupported claims.
+Do not assume all configs exist.
 
-If something is uncertain, explicitly write:
+Do not use seaborn.
 
-```text
-Must be verified in current codebase.
-```
+Use matplotlib and pandas.
+
+Make the notebook robust and readable.
 
 ---
 
 # FORMAT PRINCIPLE
 
-The final @proposal.md should read like a professional research methodology document.
+The notebook must be written as a professional research analysis notebook.
 
-It should provide:
+It should be easy to read, easy to rerun, and easy to modify.
 
-- clear philosophy
-- clear priorities
-- concrete trainable experiments
-- implementation-ready details
-- reproducibility guidelines
-- practical experiment order
-- risk assessment
-- expected conclusions
+Use Markdown cells to explain:
 
-A future AI coding agent should be able to read the proposal and directly implement the experiments with minimal human intervention.
+- what each section does
+- what output is generated
+- how to interpret each chart/table
+
+Use code cells with clear comments.
+
+Make all paths configurable at the top.
+
+The final notebook should allow me to run all cells in Google Colab and automatically generate all required tables and figures into:
+
+```text
+/content/drive/MyDrive/SE365/reports/
+```
