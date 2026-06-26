@@ -93,7 +93,32 @@ None. No existing files were modified.
 3. **Background sensitivity:** Results depend on background sample selection. The 100-sample random selection from validation set is standard but not exhaustive.
 4. **No per-feature interpretation:** Individual dimensions of the 1024-d fused vector don't have semantic labels. Only grouped modality analysis is interpretable.
 
-## 9. Future Improvements
+## 9. API Fix: Plotting Functions
+
+### Root Cause
+The initial `plot_modality_contribution()` and `plot_modality_single_target()` had `save_path: str` as a **required** positional argument. This made it impossible to call them without saving — breaking the `fig = plot_xxx(...); plt.show()` pattern used throughout the notebook.
+
+Additionally, `plot_modality_contribution()` only accepted `List[Dict]` but the notebook passed `Dict[str, Dict]` (keyed by factor name), causing a secondary TypeError.
+
+### API Change
+Both plotting functions now have:
+- `save_path: Optional[str] = None` — optional, defaults to None
+- Return type changed from `str` to `Figure` — always returns the matplotlib Figure
+- If `save_path` is provided: saves figure, prints path, closes figure, returns Figure
+- If `save_path` is None: returns Figure without saving (caller can `plt.show()`)
+- `plot_modality_contribution()` now accepts both `List[Dict]` and `Dict[str, Dict]` for contributions
+
+### Notebook Fixes
+- Step 11: now calls `plot_modality_contribution()` without save_path (display-only)
+- Step 12: fixed ablation dict keys (`text_zeroed_prediction`, `text_drop_pct` instead of `text_drop`)
+- Steps 14, 15, 17: fixed aggregate access (it's a list indexed by position, not a dict by factor name)
+
+### Compatibility
+This is backward compatible — all internal callers in `SHAPExplainer.explain_sample()` and `explain_batch()` still pass `save_path` explicitly and work identically.
+
+---
+
+## 10. Future Improvements
 
 1. **Background stability test:** Compare results with 50, 100, 200 background samples.
 2. **Error-stratified analysis:** Compare modality contribution for correct vs. incorrect predictions.

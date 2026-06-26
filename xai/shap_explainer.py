@@ -474,11 +474,11 @@ def additivity_check(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def plot_modality_contribution(
-    contributions: List[Dict[str, Any]],
-    target_names: List[str],
-    save_path: str,
+    contributions,
+    target_names: Optional[List[str]] = None,
+    save_path: Optional[str] = None,
     dpi: int = DEFAULT_DPI,
-) -> str:
+):
     """Plot grouped bar chart of text-origin vs image-origin contribution.
 
     Creates a figure with 5 grouped bars (one per target), each showing
@@ -486,21 +486,35 @@ def plot_modality_contribution(
     by SHAP value magnitudes.
 
     Args:
-        contributions: List of 5 dicts from modality_contribution(), one
-                       per target score. Each must have 'text_pct' and
-                       'image_pct' keys.
-        target_names: Display names for the 5 targets.
-        save_path: File path to save the figure.
+        contributions: Either a list of 5 dicts (each with 'text_pct' and
+                       'image_pct' keys), or a dict mapping factor_name ->
+                       contribution dict.
+        target_names: Display names for the targets. If None, uses
+                      DISPLAY_NAMES from config.
+        save_path: If provided, save figure to this path. If None, only
+                   return the Figure without saving.
         dpi: Resolution for saved figure.
 
     Returns:
-        The save_path for confirmation.
+        matplotlib Figure object.
     """
     import matplotlib.pyplot as plt
 
-    n_targets = len(contributions)
-    text_pcts = [c['text_pct'] for c in contributions]
-    image_pcts = [c['image_pct'] for c in contributions]
+    # Accept both dict (factor_name -> contrib) and list formats
+    if isinstance(contributions, dict):
+        ordered_keys = list(contributions.keys())
+        contrib_list = [contributions[k] for k in ordered_keys]
+        if target_names is None:
+            target_names = ordered_keys
+    else:
+        contrib_list = contributions
+
+    if target_names is None:
+        target_names = DISPLAY_NAMES
+
+    n_targets = len(contrib_list)
+    text_pcts = [c['text_pct'] for c in contrib_list]
+    image_pcts = [c['image_pct'] for c in contrib_list]
 
     x = np.arange(n_targets)
     width = 0.35
@@ -515,7 +529,6 @@ def plot_modality_contribution(
     bars_image = ax.bar(x + width / 2, image_pcts, width,
                         label='Image-origin', color=image_color, edgecolor='white')
 
-    # Value annotations
     for bar in bars_text:
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width() / 2, height + 0.5,
@@ -540,12 +553,13 @@ def plot_modality_contribution(
 
     fig.tight_layout()
 
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    fig.savefig(save_path, dpi=dpi, bbox_inches='tight', facecolor='white')
-    plt.close(fig)
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        fig.savefig(save_path, dpi=dpi, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
+        print(f'[XAI] Saved modality contribution chart: {save_path}')
 
-    print(f'[XAI] Saved modality contribution chart: {save_path}')
-    return save_path
+    return fig
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -556,20 +570,20 @@ def plot_modality_single_target(
     text_pct: float,
     image_pct: float,
     target_name: str,
-    save_path: str,
+    save_path: Optional[str] = None,
     dpi: int = DEFAULT_DPI,
-) -> str:
+):
     """Plot single bar chart showing text-origin vs image-origin contribution.
 
     Args:
         text_pct: Text-origin contribution percentage.
         image_pct: Image-origin contribution percentage.
         target_name: Display name for the target (e.g., 'Food Score').
-        save_path: File path to save the figure.
+        save_path: If provided, save figure. If None, only return Figure.
         dpi: Resolution for saved figure.
 
     Returns:
-        The save_path for confirmation.
+        matplotlib Figure object.
     """
     import matplotlib.pyplot as plt
 
@@ -586,7 +600,6 @@ def plot_modality_single_target(
         width=0.5,
     )
 
-    # Value annotations
     for bar in bars:
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width() / 2, height + 0.5,
@@ -601,12 +614,13 @@ def plot_modality_single_target(
 
     fig.tight_layout()
 
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    fig.savefig(save_path, dpi=dpi, bbox_inches='tight', facecolor='white')
-    plt.close(fig)
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        fig.savefig(save_path, dpi=dpi, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
+        print(f'[XAI] Saved single-target chart: {save_path}')
 
-    print(f'[XAI] Saved single-target chart: {save_path}')
-    return save_path
+    return fig
 
 
 # ══════════════════════════════════════════════════════════════════════════════
