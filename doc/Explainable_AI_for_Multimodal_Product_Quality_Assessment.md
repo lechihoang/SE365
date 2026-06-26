@@ -1,15 +1,17 @@
-# Explainable AI for Multimodal Product Quality Assessment
+# Explainable AI for Multimodal Restaurant Review Quality Assessment
 
-Publication-ready handbook for a multimodal deep learning project that uses:
+Publication-ready handbook for a multimodal deep learning system that uses:
 
-- `ConvNeXt` for the image branch
-- `XLM-RoBERTa` for the text branch
-- feature concatenation for fusion
-- an `MLP` for multi-target quality score prediction
+- **Image Encoders** (Swin-B, ConvNeXt, EfficientNet-B3, SigLIP)
+- **Text Encoders** (PhoBERT, XLM-RoBERTa, ViSoBERT)
+- **Fusion strategies** (Concat, Cross-Attention, GMU, Gated Cross-Modal, FiLM)
+- an `MLP` prediction head for multi-target quality score regression
+
+The best-performing configuration is **Swin-B + PhoBERT + Cross-Attention + LogCosh loss** (Mean MAE 1.1079).
 
 This document is written to help you move from beginner to advanced level while staying anchored to your project:
 
-> An Explainable Multi-modal Deep Learning System for Product Quality Assessment using Image and Text Data
+> An Explainable Multi-modal Deep Learning System for Restaurant Review Quality Assessment using Image and Text Data
 
 ---
 
@@ -37,17 +39,18 @@ This document is written to help you move from beginner to advanced level while 
 
 Explainable AI, or `XAI`, exists because powerful models often make accurate predictions without revealing *why* they made them. In your project, the model predicts:
 
-- `overall_score`
-- `quality_score`
+- `food_score`
 - `price_score`
-- `appearance_score`
+- `atmosphere_score`
+- `service_score`
+- `overall_satisfaction`
 
 but a score alone is not enough for research-quality understanding. You also need evidence such as:
 
-- which image regions drove the quality judgment
+- which image regions drove the food quality judgment
 - which words in the review affected the score
 - whether the decision was driven more by image or text
-- whether the fused representation learned meaningful product-quality signals
+- whether the fused representation learned meaningful restaurant-quality signals
 
 XAI exists to turn a hidden computation into an interpretable reasoning trace.
 
@@ -63,15 +66,15 @@ is learned through millions of parameters. We can observe the input `x` and outp
 
 In your system, the black-box problem appears in three places:
 
-1. `ConvNeXt` transforms pixels into a `768`-dimensional image embedding.
-2. `XLM-RoBERTa` transforms tokens into contextual vectors and a `768`-dimensional text embedding.
-3. The fusion `MLP` combines them into final scores.
+1. The **Image Encoder** (e.g., Swin-B with 1024-dim output, or ConvNeXt with 1024-dim output) transforms pixels into an image embedding.
+2. The **Text Encoder** (e.g., PhoBERT with 768-dim output, or XLM-RoBERTa with 768-dim output) transforms tokens into contextual vectors and a text embedding.
+3. The **Fusion module** (e.g., Concat, Cross-Attention, GMU) combines them, and the MLP head produces final scores.
 
 Without XAI, a thesis examiner can ask:
 
-- Why did the model think this product had poor quality?
-- Did it use damaged packaging or irrelevant background?
-- Did it focus on the word `đẹp` or only the word `giá`?
+- Why did the model think this restaurant had poor food quality?
+- Did it use food presentation issues or irrelevant background?
+- Did it focus on the word `ngon` or only the word `giá`?
 - Is the fusion layer dominated by one modality?
 
 XAI solves this by creating *post hoc evidence* or *intrinsic evidence* about the model's decision process.
@@ -80,8 +83,8 @@ XAI solves this by creating *post hoc evidence* or *intrinsic evidence* about th
 
 Think of your multimodal model as a panel of three specialists:
 
-- the image specialist looks at scratches, packaging damage, and color inconsistency
-- the text specialist reads opinions such as `đẹp`, `bền`, `đắt`, `cao`
+- the image specialist looks at food presentation, restaurant cleanliness, and interior ambiance
+- the text specialist reads opinions such as `ngon`, `bền`, `đắt`, `cao`
 - the fusion specialist combines both opinions into one final judgment
 
 XAI asks each specialist:
@@ -107,25 +110,29 @@ $$
 
 where:
 
-- $I$ is the input image
+- $I$ is the input image (up to 4 images per review)
 - $T$ is the input text
-- $f_{\text{img}}$ is the `ConvNeXt` image encoder
-- $f_{\text{text}}$ is the `XLM-RoBERTa` text encoder
-- $f_{\text{fusion}}$ is the fusion `MLP`
+- $f_{\text{img}}$ is the Image Encoder (e.g., Swin-B)
+- $f_{\text{text}}$ is the Text Encoder (e.g., PhoBERT)
+- $f_{\text{fusion}}$ is the fusion module and prediction head
 
 Let:
 
 $$
-e_{\text{img}} \in \mathbb{R}^{768}, \quad e_{\text{text}} \in \mathbb{R}^{768}
+e_{\text{img}} \in \mathbb{R}^{d_{\text{img}}}, \quad e_{\text{text}} \in \mathbb{R}^{d_{\text{text}}}
 $$
 
-Then your baseline fusion is:
+For the best model (Swin-B + PhoBERT), $d_{\text{img}} = 1024$ and $d_{\text{text}} = 768$.
+
+Then for Concat fusion:
 
 $$
-e_{\text{fusion}} = [e_{\text{img}} ; e_{\text{text}}] \in \mathbb{R}^{1536}
+e_{\text{fusion}} = [e_{\text{text}} ; e_{\text{img}}] \in \mathbb{R}^{d_{\text{text}} + d_{\text{img}}}
 $$
 
-and the prediction head computes:
+Note: in the actual code (`FusionModel.py`), **text features come first** in the concatenation, then image features. For the best model this gives $e_{\text{fusion}} \in \mathbb{R}^{1792}$ (768 + 1024).
+
+The prediction head computes:
 
 $$
 \hat{y} = g(e_{\text{fusion}})
@@ -133,107 +140,104 @@ $$
 
 XAI techniques try to explain one of three different objects:
 
-1. internal spatial activations in `ConvNeXt`
-2. token-to-token interactions in `XLM-RoBERTa`
-3. feature contributions inside the fused vector and `MLP`
+1. internal spatial activations in the Image Encoder
+2. token-to-token interactions in the Text Encoder
+3. feature contributions inside the fused vector and prediction head
 
 ### Architecture Mapping
 
 ```mermaid
 flowchart LR
-    A[Input Image] --> B[ConvNeXt]
-    C[Input Review Text] --> D[XLM-RoBERTa]
-    B --> E[image_embedding 768]
-    D --> F[text_embedding 768]
-    E --> G[Fusion Concatenation 1536]
-    F --> G
-    G --> H[MLP]
-    H --> I[overall_score]
-    H --> J[quality_score]
-    H --> K[price_score]
-    H --> L[appearance_score]
+    A[Input Images up to 4] --> B[Image Encoder e.g. Swin-B]
+    C[Input Review Text] --> D[Text Encoder e.g. PhoBERT]
+    B --> E[image_embedding e.g. 1024]
+    D --> F[text_embedding e.g. 768]
+    F --> G[Fusion e.g. Concat 1792]
+    E --> G
+    G --> H[MLP Head]
+    H --> I[food_score]
+    H --> J[price_score]
+    H --> K[atmosphere_score]
+    H --> L[service_score]
+    H --> M[overall_satisfaction]
 
-    B -. Grad-CAM .-> M[Image Explanation]
-    D -. Attention Visualization .-> N[Text Explanation]
-    G -. SHAP .-> O[Fusion Contribution Explanation]
-    A -. LIME Image .-> P[Local Image Explanation]
-    C -. LIME Text .-> Q[Local Text Explanation]
+    B -. Grad-CAM .-> N[Image Explanation]
+    D -. Attention Visualization .-> O[Text Explanation]
+    G -. SHAP .-> P[Fusion Contribution Explanation]
+    A -. LIME Image .-> Q[Local Image Explanation]
+    C -. LIME Text .-> R[Local Text Explanation]
 ```
 
 ### Tensor Shapes
 
-Typical tensors in your pipeline:
+Typical tensors in your pipeline (using the best model Swin-B + PhoBERT as example):
 
 | Stage | Tensor | Shape | Meaning |
 |---|---|---:|---|
-| Input image | `pixel_values` | `[B, 3, H, W]` | RGB image batch |
-| ConvNeXt feature map | `feature_map` | `[B, C, Hf, Wf]` | spatial image features before pooling |
-| Image embedding | `image_embedding` | `[B, 768]` | pooled image representation |
+| Input image | `pixel_values` | `[B, N, 3, H, W]` or `[B, 3, H, W]` | RGB image batch (N images per review, up to 4) |
+| Image feature map | `feature_map` | `[B, 1024, 7, 7]` | spatial image features before pooling (Swin-B, 224x224 input) |
+| Image embedding | `image_embedding` | `[B, 1024]` | pooled image representation (Swin-B/ConvNeXt) |
 | Token ids | `input_ids` | `[B, L]` | tokenized review text |
 | Attention mask | `attention_mask` | `[B, L]` | valid token mask |
-| XLM-R hidden states | `last_hidden_state` | `[B, L, 768]` | contextual token representations |
-| Text embedding | `text_embedding` | `[B, 768]` | pooled text representation |
-| Fusion embedding | `fusion_embedding` | `[B, 1536]` | concatenated multimodal representation |
-| Output scores | `preds` | `[B, 4]` | four regression outputs |
+| Text hidden states | `last_hidden_state` | `[B, L, 768]` | contextual token representations (PhoBERT/XLM-R) |
+| Text embedding | `text_embedding` | `[B, 768]` | pooled text representation (PhoBERT/XLM-R) |
+| Fusion embedding | `fusion_embedding` | `[B, fusion_size]` | concatenated multimodal representation (e.g., `[B, 1792]` for Swin-B+PhoBERT) |
+| Output scores | `preds` | `[B, 5]` | five regression outputs |
 
 ### PyTorch Implementation
 
-The most important implementation idea is to expose intermediate tensors cleanly.
+The most important implementation idea is to understand how the actual model exposes intermediate tensors.
+
+In the actual codebase, unimodal models (`TextModel`, `ImageModel`) return a tuple `(predictions, raw_features)`, while fusion models (`FusionModel`, `CrossAttentionFusion`, etc.) return just a predictions tensor.
 
 ```python
 import torch
 import torch.nn as nn
 
 
-class MultiModalQualityModel(nn.Module):
-    def __init__(self, image_encoder, text_encoder, fusion_mlp):
+class FusionModel(nn.Module):
+    """
+    Simplified view of the actual FusionModel (Concat fusion).
+    The real code is in Models/FusionModel.py.
+    """
+    def __init__(self, text_model, image_model, num_factors=5):
         super().__init__()
-        self.image_encoder = image_encoder
-        self.text_encoder = text_encoder
-        self.fusion_mlp = fusion_mlp
+        self.text_model = text_model
+        self.image_model = image_model
 
-    def forward(
-        self,
-        pixel_values,
-        input_ids,
-        attention_mask,
-        output_attentions=False,
-        return_intermediates=False,
-    ):
-        image_outputs = self.image_encoder(pixel_values, return_feature_map=True)
-        text_outputs = self.text_encoder(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            output_attentions=output_attentions,
-            return_dict=True,
+        # fusion_size = text_encoder.config.hidden_size + image_encoder.num_features
+        # e.g., 768 (PhoBERT) + 1024 (Swin-B) = 1792
+        fusion_size = text_model.encoder.config.hidden_size + image_model.encoder.num_features
+        self.fusion_fc = nn.Sequential(
+            nn.Linear(fusion_size, 512),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(512, 256),
+            nn.ReLU(),
         )
+        self.factor_head = nn.Linear(256, num_factors)  # num_factors = 5
 
-        image_embedding = image_outputs["image_embedding"]          # [B, 768]
-        feature_map = image_outputs["feature_map"]                  # [B, C, Hf, Wf]
-        last_hidden_state = text_outputs.last_hidden_state          # [B, L, 768]
-        text_embedding = last_hidden_state[:, 0, :]                # [B, 768], CLS-style pooling
+    def forward(self, input_ids, attention_mask, pixel_values, num_images=None):
+        # Unimodal models return (predictions, raw_features)
+        # We use raw_features (2nd element), NOT the FC-projected predictions
+        _, text_features = self.text_model(input_ids, attention_mask)
+        _, image_features = self.image_model(pixel_values, num_images=num_images)
 
-        fusion_embedding = torch.cat([image_embedding, text_embedding], dim=-1)  # [B, 1536]
-        preds = self.fusion_mlp(fusion_embedding)                  # [B, 4]
+        # IMPORTANT: text comes FIRST, then image in concatenation
+        fused_features = torch.cat(
+            (text_features.to(torch.float32), image_features.to(torch.float32)),
+            dim=1,
+        )  # [B, fusion_size] e.g. [B, 1792]
 
-        output = {"preds": preds}
-
-        if return_intermediates:
-            output.update(
-                {
-                    "feature_map": feature_map,
-                    "image_embedding": image_embedding,
-                    "last_hidden_state": last_hidden_state,
-                    "text_embedding": text_embedding,
-                    "fusion_embedding": fusion_embedding,
-                }
-            )
-
-        if output_attentions:
-            output["attentions"] = text_outputs.attentions
-
-        return output
+        return self.factor_head(self.fusion_fc(fused_features))  # [B, 5]
 ```
+
+Key differences from a naive implementation:
+
+- The fusion uses **raw encoder features**, not FC-projected predictions from each unimodal model.
+- Fusion models return just a predictions tensor, not a dictionary with intermediates.
+- There is no `return_intermediates` parameter in the actual code.
+- `output_attentions` is set on the text encoder directly (via Hugging Face), not on the fusion model.
 
 ### Visualization
 
@@ -248,42 +252,44 @@ Your project needs four complementary explanation views:
 
 ### Example from My Project
 
-Suppose the product image shows:
+Suppose the restaurant image shows:
 
-- a dented cardboard box
-- a scratched bottle surface
-- slightly uneven color
+- a poorly presented food dish
+- a dirty restaurant interior
+- slightly dim lighting
 
 and the review says:
 
-`Sản phẩm đẹp nhưng giá hơi cao`
+`Đồ ăn ngon nhưng giá hơi cao`
 
 Then a good explainable system should produce a human-readable explanation such as:
 
-- `appearance_score` is high because image regions around the visible product body are clean and visually appealing
+- `food_score` is high because image regions around the dish itself look appetizing despite poor plating
 - `price_score` is lower because the text branch focuses on the phrase `giá hơi cao`
-- `overall_score` is influenced mostly by the image branch, but text moderately decreases it
+- `atmosphere_score` is lower because the image branch detected the unclean interior
+- `service_score` is moderate based on the lack of explicit service mentions in text
+- `overall_satisfaction` is influenced mostly by the image branch, but text moderately decreases it
 
 ### Common Mistakes
 
 - Treating attention as guaranteed explanation.
 - Using only one XAI tool and claiming complete interpretability.
-- Explaining the wrong output head, such as using `overall_score` when analyzing `price_score`.
+- Explaining the wrong output head, such as using `overall_satisfaction` when analyzing `price_score`.
 - Forgetting that regression explanation differs from classification explanation.
 - Failing to hold the other modality fixed when explaining one modality.
 
 ### Debugging Tips
 
 - Check that explanations are generated for the correct target output index.
-- Compare explanations for `overall_score` and `price_score`; they should not always look identical.
+- Compare explanations for `overall_satisfaction` and `price_score`; they should not always look identical.
 - Verify that background, watermark, or padding areas are not dominating `Grad-CAM`.
-- For text, inspect actual tokenization because `XLM-RoBERTa` may split Vietnamese words into subwords.
+- For text, inspect actual tokenization because PhoBERT may split Vietnamese words into subwords.
 
 ### Thesis Writing Example
 
 Example paragraph:
 
-> To improve model transparency, we integrated multiple explainability mechanisms at different levels of the proposed multimodal architecture. Grad-CAM was applied to the ConvNeXt image branch to localize visually salient regions associated with predicted quality scores. Attention visualization was applied to the XLM-RoBERTa text branch to identify influential textual evidence. SHAP analysis was conducted on the fused embedding to quantify feature-level and modality-level contributions, while LIME was used as a local perturbation-based validation tool. This multi-level design allowed us to explain not only *where* the model looked, but also *which modality* and *which features* drove the final prediction.
+> To improve model transparency, we integrated multiple explainability mechanisms at different levels of the proposed multimodal architecture. Grad-CAM was applied to the Swin-B image branch to localize visually salient regions associated with predicted quality scores. Attention visualization was applied to the PhoBERT text branch to identify influential textual evidence. SHAP analysis was conducted on the fused embedding to quantify feature-level and modality-level contributions, while LIME was used as a local perturbation-based validation tool. This multi-level design allowed us to explain not only *where* the model looked, but also *which modality* and *which features* drove the final prediction.
 
 ### Defense Questions
 
@@ -315,31 +321,31 @@ Short model answers:
 
 > Which regions of an image caused the network to make a specific prediction?
 
-CNN-style backbones, including `ConvNeXt`, compress an image through many spatial feature maps. By the end of the network, we get a compact embedding, but the spatial reasoning that produced it is hidden. `Grad-CAM` restores a coarse spatial explanation by projecting gradient information back onto the last meaningful convolutional feature maps [1].
+CNN-style and patch-based backbones, including `Swin Transformer` and `ConvNeXt`, compress an image through many spatial feature maps. By the end of the network, we get a compact embedding, but the spatial reasoning that produced it is hidden. `Grad-CAM` restores a coarse spatial explanation by projecting gradient information back onto the last meaningful feature maps [1].
 
 ### Problem it solves
 
-In your project, the image branch predicts quality-related properties from product photos. Without localization, you cannot tell whether the network:
+In your project, the image branch predicts quality-related properties from restaurant and food photos. Without localization, you cannot tell whether the network:
 
-- correctly focused on damaged packaging
-- correctly focused on scratches or dents
-- incorrectly focused on the background table
-- incorrectly focused on the seller watermark or lighting artifacts
+- correctly focused on food presentation issues
+- correctly focused on the restaurant interior and cleanliness
+- incorrectly focused on the background wall
+- incorrectly focused on a watermark or lighting artifacts
 
 `Grad-CAM` solves the missing spatial evidence problem.
 
 ### Intuition
 
-Imagine the last `ConvNeXt` feature map as a stack of image detectors:
+Imagine the last feature map of your Image Encoder (e.g., Swin-B) as a stack of image detectors:
 
 - channel 1 responds to edges
-- channel 54 responds to glossy reflections
-- channel 187 responds to damaged corners
-- channel 411 responds to printed packaging regions
+- channel 54 responds to glossy reflections on food
+- channel 187 responds to messy food plating
+- channel 411 responds to restaurant interior elements
 
-Now choose one output, for example `quality_score`. We ask:
+Now choose one output, for example `food_score`. We ask:
 
-- If `quality_score` increases, which channels were most responsible?
+- If `food_score` increases, which channels were most responsible?
 - Among those channels, where in the image did they activate?
 
 `Grad-CAM` does exactly this:
@@ -353,8 +359,8 @@ Now choose one output, for example `quality_score`. We ask:
 
 Let:
 
-- $A^k \in \mathbb{R}^{H \times W}$ be the $k$-th feature map of a chosen convolutional layer
-- $y^t$ be the scalar target output you want to explain, such as `appearance_score`
+- $A^k \in \mathbb{R}^{H \times W}$ be the $k$-th feature map of a chosen layer
+- $y^t$ be the scalar target output you want to explain, such as `atmosphere_score`
 
 The importance weight for channel $k$ is:
 
@@ -387,7 +393,7 @@ Why `ReLU`?
 
 ```mermaid
 flowchart TD
-    A[Input Image] --> B[ConvNeXt Feature Maps A^1 ... A^K]
+    A[Input Image] --> B[Image Encoder Feature Maps A^1 ... A^K]
     B --> C[Pooling and MLP Heads]
     C --> D[Target Score y^t]
     D -. Backprop gradient .-> B
@@ -401,26 +407,30 @@ flowchart TD
 
 For your architecture, `Grad-CAM` should be attached to the **image branch before global pooling**.
 
-Recommended placement:
+Recommended placement depends on the backbone:
 
-- use the last spatial stage of `ConvNeXt`
-- do **not** use the final `image_embedding` `[B, 768]`, because it has no 2D spatial structure
+- **Swin-B**: the last stage output produces `[B, 1024, 7, 7]` feature maps for 224x224 input. Swin Transformer is patch-based with shifted windows and produces spatial feature maps suitable for Grad-CAM.
+- **ConvNeXt**: the last spatial stage, similar to Swin-B. Also produces `[B, 1024, 7, 7]` for 224x224 input.
+- **EfficientNet-B3**: the last convolutional block before pooling.
+
+Do **not** use the final pooled embedding (e.g., `[B, 1024]`), because it has no 2D spatial structure.
 
 If your image branch produces:
 
 ```python
-feature_map  # [B, C, Hf, Wf]
-image_embedding  # [B, 768]
+feature_map  # [B, C, Hf, Wf] e.g. [B, 1024, 7, 7] for Swin-B
+image_embedding  # [B, 1024]
 ```
 
 then `Grad-CAM` uses `feature_map`, not `image_embedding`.
 
 In a multimodal setting, gradients come from a selected output head:
 
-- `overall_score`
-- `quality_score`
+- `food_score`
 - `price_score`
-- `appearance_score`
+- `atmosphere_score`
+- `service_score`
+- `overall_satisfaction`
 
 This means you can produce different Grad-CAM maps for the same image depending on which score you explain.
 
@@ -442,16 +452,16 @@ In short:
 
 ### Tensor Shapes
 
-Example image path through the branch:
+Example image path through the branch (using Swin-B as the best-performing backbone):
 
 | Stage | Tensor | Shape |
 |---|---|---:|
 | Input image | `pixel_values` | `[B, 3, 224, 224]` |
-| Late ConvNeXt feature map | `feature_map` | `[B, 768, 7, 7]` |
-| Global average pooling | `pooled` | `[B, 768, 1, 1]` |
-| Flattened embedding | `image_embedding` | `[B, 768]` |
-| Fused embedding | `fusion_embedding` | `[B, 1536]` |
-| Output scores | `preds` | `[B, 4]` |
+| Late Swin-B feature map | `feature_map` | `[B, 1024, 7, 7]` |
+| Global average pooling | `pooled` | `[B, 1024, 1, 1]` |
+| Flattened embedding | `image_embedding` | `[B, 1024]` |
+| Fused embedding | `fusion_embedding` | `[B, 1792]` |
+| Output scores | `preds` | `[B, 5]` |
 
 Gradient flow for one scalar output:
 
@@ -462,13 +472,13 @@ $$
 For one sample:
 
 $$
-\frac{\partial y^t}{\partial A} \in \mathbb{R}^{768 \times 7 \times 7}
+\frac{\partial y^t}{\partial A} \in \mathbb{R}^{1024 \times 7 \times 7}
 $$
 
 Then channel weights:
 
 $$
-\alpha^t \in \mathbb{R}^{768}
+\alpha^t \in \mathbb{R}^{1024}
 $$
 
 and final heatmap:
@@ -488,7 +498,7 @@ The main design choice in your project is: **what model should Grad-CAM see?**
 Best practice:
 
 - explain the *full multimodal output* while keeping text fixed
-- pass the selected image through the model
+- pass the selected image through the model (for multi-image reviews, explain one image at a time, typically the primary/first image)
 - compute gradients from one chosen score head
 
 ```python
@@ -508,14 +518,11 @@ class MultiTargetScoreWrapper(nn.Module):
         self.score_index = score_index
 
     def forward(self, pixel_values):
-        outputs = self.multimodal_model(
-            pixel_values=pixel_values,
+        preds = self.multimodal_model(
             input_ids=self.fixed_input_ids,
             attention_mask=self.fixed_attention_mask,
-            output_attentions=False,
-            return_intermediates=False,
-        )
-        preds = outputs["preds"]  # [B, 4]
+            pixel_values=pixel_values,
+        )  # [B, 5]
         return preds[:, self.score_index]  # [B]
 
 
@@ -532,13 +539,13 @@ def generate_gradcam(
     return grayscale_cam, overlay
 ```
 
-If you use a custom `ConvNeXt` branch, the target layer is usually one of:
+Target layer selection depends on the backbone:
 
-- the last block in the last stage
-- the last depthwise-convolution-containing block before pooling
-- the final spatial normalization layer output if it preserves `[B, C, H, W]`
+- **Swin-B** (`swin_base_patch4_window7_224`): the last block in `layers[-1]` or the final norm layer that preserves `[B, C, H, W]`
+- **ConvNeXt** (`convnext_base_in22k`): the last block in the last stage, or the final spatial normalization layer before pooling
+- **EfficientNet-B3**: the last convolutional block before pooling
 
-If you use a Hugging Face `ConvNeXt`, the `pytorch-grad-cam` tutorial demonstrates selecting the final encoder stage and, for some workflows, applying a shape transform suitable for that model family [9].
+If you use a Hugging Face model, the `pytorch-grad-cam` tutorial demonstrates selecting the final encoder stage and, for some workflows, applying a shape transform suitable for that model family [9].
 
 ### Visualization
 
@@ -546,15 +553,15 @@ Pipeline:
 
 ```text
 Input Image
-  ↓
-ConvNeXt
-  ↓
+  |
+Image Encoder (e.g., Swin-B)
+  |
 Late Feature Map
-  ↓ + gradients from target score
+  | + gradients from target score
 Grad-CAM
-  ↓
+  |
 Upsampled Heatmap
-  ↓
+  |
 Heatmap Overlay on Original Image
 ```
 
@@ -563,26 +570,26 @@ Interpretation rules for your project:
 - bright red or yellow regions indicate strong positive support for the selected score
 - dark blue or no-color regions indicate weak support
 - if the map is spread across the whole image, the model may be using global appearance cues
-- if the map focuses on defects, the explanation is more semantically convincing
+- if the map focuses on specific food or environment features, the explanation is more semantically convincing
 
-Quality-assessment interpretation examples:
+Restaurant review interpretation examples:
 
 | Visual pattern | Plausible interpretation |
 |---|---|
-| Damaged corner highlighted | model associates packaging damage with lower quality |
-| Scratched surface highlighted | model detects cosmetic defect |
-| Uneven color area highlighted | model uses appearance inconsistency |
-| Clean product body highlighted for `appearance_score` | model uses positive visual appeal |
+| Food plating highlighted | model associates food presentation with food quality |
+| Dirty table or floor highlighted | model detects cleanliness issues |
+| Restaurant interior highlighted | model uses atmosphere/ambiance cues |
+| Clean dish presentation highlighted for `food_score` | model uses positive visual appeal of food |
 | Background highlighted | possible shortcut or failure |
 
 ### Example from My Project
 
-Suppose the image shows a dented package and a scratched product cap.
+Suppose the image shows a poorly presented dish and a stained table surface.
 
 Possible `Grad-CAM` results:
 
-- `quality_score`: heatmap concentrates on the dented box edge and scratch area
-- `appearance_score`: heatmap focuses on the visible product body and front-facing aesthetic region
+- `food_score`: heatmap concentrates on the dish area and food presentation
+- `atmosphere_score`: heatmap focuses on the restaurant interior and table conditions
 - `price_score`: heatmap is weaker or more diffuse because price is often more text-driven than image-driven
 
 That difference is scientifically useful. It shows that output heads may rely on different evidence.
@@ -606,35 +613,35 @@ That difference is scientifically useful. It shows that output heads may rely on
 
 Example method description:
 
-> We applied Gradient-weighted Class Activation Mapping (Grad-CAM) to the final spatial feature maps of the ConvNeXt image encoder to localize regions contributing to each predicted quality score. For a selected target output $y^t$, the gradients with respect to the final feature maps were globally averaged to obtain channel importance weights, and the weighted combination of feature maps was passed through a ReLU operation to generate a class activation map. The resulting heatmap was upsampled and overlaid on the original product image to visualize visually salient regions.
+> We applied Gradient-weighted Class Activation Mapping (Grad-CAM) to the final spatial feature maps of the Swin-B image encoder to localize regions contributing to each predicted quality score. For a selected target output $y^t$, the gradients with respect to the final feature maps were globally averaged to obtain channel importance weights, and the weighted combination of feature maps was passed through a ReLU operation to generate a class activation map. The resulting heatmap was upsampled and overlaid on the original restaurant image to visualize visually salient regions.
 
 Example result discussion:
 
-> For samples with damaged packaging, Grad-CAM consistently highlighted dented corners and surface scratches, suggesting that the model relied on defect-related visual evidence rather than irrelevant background features. In contrast, some failure cases showed high activation on lighting reflections, indicating sensitivity to imaging artifacts.
+> For samples with poorly presented dishes, Grad-CAM consistently highlighted messy food plating and unclean surfaces, suggesting that the model relied on food presentation and cleanliness evidence rather than irrelevant background features. In contrast, some failure cases showed high activation on lighting reflections, indicating sensitivity to imaging artifacts.
 
 Example figure caption:
 
-> **Figure X.** Grad-CAM visualization for the `quality_score` head. Warm colors indicate image regions that positively supported the predicted quality assessment. The model focused primarily on the damaged packaging edge and the scratched cap region.
+> **Figure X.** Grad-CAM visualization for the `food_score` head. Warm colors indicate image regions that positively supported the predicted food quality assessment. The model focused primarily on the dish presentation area and the surrounding table surface.
 
 ### Defense Questions
 
 1. Why use Grad-CAM instead of raw feature maps?
-2. Why is Grad-CAM appropriate for ConvNeXt?
+2. Why is Grad-CAM appropriate for Swin-B?
 3. What is the difference between Grad-CAM and attention visualization?
 4. What are the limitations of Grad-CAM?
 
 Strong answers:
 
 1. Raw feature maps show activation magnitude, but Grad-CAM ties those maps to a specific target output through gradients.
-2. ConvNeXt still produces late spatial feature maps, so Grad-CAM can localize evidence before global pooling.
+2. Swin-B still produces late spatial feature maps (via its shifted-window attention mechanism), so Grad-CAM can localize evidence before global pooling. The feature maps have shape `[B, 1024, 7, 7]` for 224x224 input.
 3. Grad-CAM is gradient-based spatial attribution in the image branch; attention visualization shows token interactions in the text branch.
 4. Grad-CAM is low-resolution, not strictly causal, and can be sensitive to target layer choice.
 
 ### Key Takeaways
 
 - `Grad-CAM` explains *where* the image branch looked.
-- In your architecture, it attaches to the last spatial `ConvNeXt` feature map.
-- It is especially useful for showing damaged packaging, scratches, color inconsistency, and other visible defects.
+- In your architecture, it attaches to the last spatial feature map of the Image Encoder (e.g., Swin-B).
+- It is especially useful for showing food presentation, restaurant cleanliness, interior ambiance, and other visible quality cues.
 
 ---
 
@@ -650,11 +657,11 @@ For your project, attention visualization helps reveal:
 
 - which words influence each prediction
 - which tokens attend to each other
-- whether the text branch is focusing on quality terms, price terms, or irrelevant filler
+- whether the text branch is focusing on food quality terms, price terms, or irrelevant filler
 
 ### Problem it solves
 
-`XLM-RoBERTa` outputs:
+The Text Encoder (e.g., PhoBERT or XLM-RoBERTa) outputs:
 
 - `text_embedding` of shape `[B, 768]`
 - `last_hidden_state` of shape `[B, L, 768]`
@@ -662,7 +669,7 @@ For your project, attention visualization helps reveal:
 
 Without attention analysis, the text branch remains opaque. You cannot easily explain why:
 
-- `appearance_score` increased after seeing `đẹp`
+- `food_score` increased after seeing `ngon`
 - `price_score` decreased after seeing `giá hơi cao`
 - the model ignored words that humans consider important
 
@@ -674,11 +681,11 @@ Self-attention answers:
 
 For the sentence:
 
-`Sản phẩm đẹp nhưng giá hơi cao`
+`Đồ ăn ngon nhưng giá hơi cao`
 
 intuitively:
 
-- `đẹp` contributes positive appearance sentiment
+- `ngon` contributes positive food quality sentiment
 - `giá` identifies the price aspect
 - `cao` tells us the direction of the price judgment
 
@@ -745,7 +752,7 @@ Different heads may learn:
 
 ### Architecture Mapping
 
-For `XLM-RoBERTa`, request attention tensors by setting:
+For the Text Encoder (PhoBERT or XLM-RoBERTa), request attention tensors by setting:
 
 ```python
 output_attentions=True
@@ -757,7 +764,7 @@ Practical mapping in your system:
 
 - use `outputs.attentions` for token interaction evidence
 - use `last_hidden_state` for token-level contextual representations
-- use `text_embedding` for fusion
+- use `text_embedding` (pooler_output or CLS token) for fusion
 
 Important distinction:
 
@@ -801,18 +808,18 @@ Example:
 
 ### PyTorch Implementation
 
-The implementation is straightforward with `transformers`. Current Hugging Face documentation supports `output_attentions=True` to obtain attention tensors from model outputs [10].
+The implementation is straightforward with `transformers`. Current Hugging Face documentation supports `output_attentions=True` to obtain attention tensors from model outputs [10]. Both PhoBERT and XLM-RoBERTa are RoBERTa-based and work identically for attention extraction.
 
 ```python
 import torch
 from transformers import AutoTokenizer, AutoModel
 
 
-tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
-text_model = AutoModel.from_pretrained("xlm-roberta-base")
+tokenizer = AutoTokenizer.from_pretrained("vinai/phobert-base-v2")
+text_model = AutoModel.from_pretrained("vinai/phobert-base-v2")
 text_model.eval()
 
-sentence = "Sản phẩm đẹp nhưng giá hơi cao"
+sentence = "Đồ ăn ngon nhưng giá hơi cao"
 encoded = tokenizer(sentence, return_tensors="pt")
 
 with torch.no_grad():
@@ -878,17 +885,17 @@ Three useful visualizations for thesis-quality reporting:
 
 Example with your review:
 
-`Sản phẩm đẹp nhưng giá hơi cao`
+`Đồ ăn ngon nhưng giá hơi cao`
 
 Expected highlighted words:
 
-- `đẹp`: positive appearance cue
+- `ngon`: positive food quality cue
 - `giá`: identifies price aspect
 - `cao`: negative price evaluation
 
 Why?
 
-- `đẹp` tends to support appearance-related predictions
+- `ngon` tends to support food-related predictions
 - `giá` and `cao` together form a negative price phrase
 - `nhưng` acts as a discourse contrast marker, showing two opposing sentiments in one sentence
 
@@ -896,25 +903,25 @@ Why?
 
 Suppose the model predicts:
 
-- `appearance_score = 8.2`
+- `food_score = 8.0`
 - `price_score = 5.5`
 
 A sensible text explanation is:
 
-- attention linked `đẹp` with the product aspect, supporting a high appearance score
+- attention linked `ngon` with the food aspect, supporting a high food score
 - attention linked `giá` and `cao`, supporting a lower price score
-- the conjunction `nhưng` helped the model separate positive appearance sentiment from negative price sentiment
+- the conjunction `nhưng` helped the model separate positive food sentiment from negative price sentiment
 
 ### Common Mistakes
 
 - Treating special tokens like `<s>` and `</s>` as meaningful evidence without inspection.
-- Forgetting that `XLM-RoBERTa` may split a Vietnamese word into multiple subword pieces.
+- Forgetting that PhoBERT (and XLM-RoBERTa) may split a Vietnamese word into multiple subword pieces.
 - Averaging all layers blindly, which can wash out useful signal.
 - Claiming that high attention always means causal importance.
 
 ### Debugging Tips
 
-- Visualize tokenization first. If `đẹp` is split, aggregate subwords back to word level before plotting for humans.
+- Visualize tokenization first. If `ngon` is split, aggregate subwords back to word level before plotting for humans.
 - Compare early-layer and late-layer attention. Early layers are often syntactic; late layers are often more task-relevant.
 - Inspect attention per output head indirectly by combining attention with gradient-based token attribution if needed.
 - If attention maps look noisy, try:
@@ -926,15 +933,15 @@ A sensible text explanation is:
 
 Example method description:
 
-> To interpret the textual evidence used by the multilingual text encoder, attention weights were extracted from XLM-RoBERTa by enabling `output_attentions=True`. For each input review, we analyzed head-wise and layer-wise attention matrices and aggregated them across heads to produce token-level heatmaps. This enabled qualitative identification of influential terms and their interactions, especially for aspect-bearing words related to product appearance and price.
+> To interpret the textual evidence used by the Vietnamese text encoder, attention weights were extracted from PhoBERT by enabling `output_attentions=True`. For each input review, we analyzed head-wise and layer-wise attention matrices and aggregated them across heads to produce token-level heatmaps. This enabled qualitative identification of influential terms and their interactions, especially for aspect-bearing words related to food quality and price.
 
 Example discussion:
 
-> In the review "Sản phẩm đẹp nhưng giá hơi cao", the model assigned stronger attention to the tokens corresponding to `đẹp`, `giá`, and `cao`. This pattern indicates that the text branch captured both positive appearance sentiment and negative price sentiment. However, attention visualization was interpreted cautiously, as attention weights do not always correspond directly to causal importance.
+> In the review "Đồ ăn ngon nhưng giá hơi cao", the model assigned stronger attention to the tokens corresponding to `ngon`, `giá`, and `cao`. This pattern indicates that the text branch captured both positive food sentiment and negative price sentiment. However, attention visualization was interpreted cautiously, as attention weights do not always correspond directly to causal importance.
 
 Example figure caption:
 
-> **Figure Y.** Aggregated last-layer attention heatmap from XLM-RoBERTa for the review "Sản phẩm đẹp nhưng giá hơi cao". Darker cells indicate stronger token-to-token attention weights.
+> **Figure Y.** Aggregated last-layer attention heatmap from PhoBERT for the review "Đồ ăn ngon nhưng giá hơi cao". Darker cells indicate stronger token-to-token attention weights.
 
 ### Defense Questions
 
@@ -952,8 +959,8 @@ Strong answers:
 
 ### Key Takeaways
 
-- Attention visualization explains *which words interact* inside `XLM-RoBERTa`.
-- It is useful for interpreting multilingual review evidence, especially aspect phrases like `giá hơi cao`.
+- Attention visualization explains *which words interact* inside the Text Encoder (e.g., PhoBERT).
+- It is useful for interpreting Vietnamese review evidence, especially aspect phrases like `giá hơi cao`.
 - It should be reported as supportive evidence, not as a perfect causal explanation.
 
 ---
@@ -969,22 +976,22 @@ Strong answers:
 For your project, SHAP is attractive because it answers questions that neither Grad-CAM nor attention can answer well:
 
 - Was the final prediction driven more by image or text?
-- Which parts of the `1536`-dimensional fusion vector contributed most?
+- Which parts of the `fusion_size`-dimensional fusion vector contributed most?
 - Did the text branch raise or lower the score?
 
 ### Problem it solves
 
-The fusion `MLP` receives:
+The fusion prediction head receives:
 
 ```python
-fusion_embedding  # [B, 1536]
+fusion_embedding  # [B, fusion_size] e.g. [B, 1792] for Swin-B + PhoBERT
 ```
 
 This vector is already highly abstract. It no longer corresponds directly to pixels or words. You need a feature contribution method that can say:
 
-- these image dimensions pushed the score up
-- these text dimensions pushed the score down
-- overall image contribution was `72%`, text contribution was `28%`
+- these text dimensions pushed the score up
+- these image dimensions pushed the score down
+- overall image contribution was `62%`, text contribution was `38%`
 
 SHAP solves this contribution decomposition problem.
 
@@ -1042,16 +1049,22 @@ where:
 
 #### Modality-level grouping
 
-Your `1536` features can be grouped into:
+Your `fusion_size` features can be grouped by modality. **Crucially, in the actual code (`FusionModel.py`), text features come first in the concatenation, followed by image features:**
 
-- image group: dimensions `0:768`
-- text group: dimensions `768:1536`
+```python
+fused_features = torch.cat((text_features, image_features), dim=1)
+```
+
+So for Swin-B + PhoBERT (fusion_size = 1792):
+
+- text group: dimensions `0:768` (PhoBERT features)
+- image group: dimensions `768:1792` (Swin-B features)
 
 Then a modality contribution can be approximated as:
 
 $$
-\Phi_{\text{img}} = \sum_{i=1}^{768} |\phi_i|,\qquad
-\Phi_{\text{text}} = \sum_{i=769}^{1536} |\phi_i|
+\Phi_{\text{text}} = \sum_{i=0}^{d_{\text{text}}-1} |\phi_i|,\qquad
+\Phi_{\text{img}} = \sum_{i=d_{\text{text}}}^{d_{\text{fusion}}-1} |\phi_i|
 $$
 
 and normalized percentage:
@@ -1068,35 +1081,35 @@ The best insertion point for SHAP in your system is the **fusion layer or the pr
 
 Recommended strategy:
 
-1. explain the `MLP` that maps `fusion_embedding -> scores`
+1. explain the prediction head that maps `fusion_embedding -> scores`
 2. optionally explain the full multimodal model if computational budget allows
 
 Why the head is the best starting point:
 
-- input dimensionality is controlled (`1536`)
+- input dimensionality is controlled (`fusion_size`, e.g. 1792 for Swin-B + PhoBERT)
 - feature semantics are stable
 - explanations are faster and easier to compare
 
 ### Tensor Shapes
 
-For one sample:
+For one sample (Swin-B + PhoBERT example):
 
 | Tensor | Shape |
 |---|---:|
-| `image_embedding` | `[768]` |
 | `text_embedding` | `[768]` |
-| `fusion_embedding` | `[1536]` |
-| `shap_values` for one target | `[1536]` |
+| `image_embedding` | `[1024]` |
+| `fusion_embedding` | `[1792]` |
+| `shap_values` for one target | `[1792]` |
 
 For a batch of `N` samples and one output head:
 
 | Tensor | Shape |
 |---|---:|
-| fused inputs | `[N, 1536]` |
+| fused inputs | `[N, 1792]` |
 | predictions | `[N, 1]` or `[N]` |
-| SHAP values | `[N, 1536]` |
+| SHAP values | `[N, 1792]` |
 
-If you explain all four outputs separately, repeat the process per target or organize outputs accordingly.
+If you explain all five outputs separately, repeat the process per target or organize outputs accordingly.
 
 ### PyTorch Implementation
 
@@ -1105,7 +1118,7 @@ For a differentiable head, `DeepExplainer` or `GradientExplainer` is usually a g
 In your project, a practical pattern is:
 
 - extract fused embeddings from the full model
-- train or reuse the `MLP` head
+- reuse the prediction head (fusion_fc + factor_head)
 - explain the head with SHAP
 
 ```python
@@ -1115,18 +1128,20 @@ import shap
 
 
 class FusionHeadWrapper(nn.Module):
-    def __init__(self, fusion_mlp, score_index):
+    def __init__(self, fusion_fc, factor_head, score_index):
         super().__init__()
-        self.fusion_mlp = fusion_mlp.eval()
+        self.fusion_fc = fusion_fc.eval()
+        self.factor_head = factor_head.eval()
         self.score_index = score_index
 
     def forward(self, fusion_embedding):
-        preds = self.fusion_mlp(fusion_embedding)   # [B, 4]
+        hidden = self.fusion_fc(fusion_embedding)
+        preds = self.factor_head(hidden)   # [B, 5]
         return preds[:, self.score_index: self.score_index + 1]  # [B, 1]
 
 
-def compute_shap_for_fusion_head(fusion_mlp, background_fused, sample_fused, score_index=0):
-    wrapper = FusionHeadWrapper(fusion_mlp, score_index)
+def compute_shap_for_fusion_head(fusion_fc, factor_head, background_fused, sample_fused, score_index=0):
+    wrapper = FusionHeadWrapper(fusion_fc, factor_head, score_index)
     explainer = shap.DeepExplainer(wrapper, background_fused)
     shap_values = explainer.shap_values(sample_fused)
     return explainer, shap_values
@@ -1138,12 +1153,16 @@ def compute_shap_for_fusion_head(fusion_mlp, background_fused, sample_fused, sco
 import numpy as np
 
 
-def modality_contribution(shap_vector):
-    img_part = shap_vector[:768]
-    txt_part = shap_vector[768:]
+def modality_contribution(shap_vector, text_dim=768):
+    """
+    Compute modality contribution from SHAP values.
+    IMPORTANT: text features come FIRST in the concatenation (from FusionModel.py).
+    """
+    txt_part = shap_vector[:text_dim]
+    img_part = shap_vector[text_dim:]
 
-    img_mag = np.abs(img_part).sum()
     txt_mag = np.abs(txt_part).sum()
+    img_mag = np.abs(img_part).sum()
     total = img_mag + txt_mag + 1e-8
 
     return {
@@ -1170,9 +1189,9 @@ The most useful SHAP plots for your thesis:
 Interpretation in your system:
 
 - summary plot: global importance across fusion dimensions
-- waterfall plot: why one product got a specific `overall_score`
+- waterfall plot: why one restaurant review got a specific `overall_satisfaction`
 - grouped bar plot: image vs text contribution
-- force plot: whether text pushed price down while image pushed appearance up
+- force plot: whether text pushed price down while image pushed food quality up
 
 Example plotting workflow:
 
@@ -1181,7 +1200,7 @@ import shap
 import matplotlib.pyplot as plt
 
 
-# shap_array: [N, 1536]
+# shap_array: [N, fusion_size] e.g. [N, 1792]
 # sample_idx = 0
 
 shap.summary_plot(shap_array, sample_fused.cpu().numpy(), show=False)
@@ -1207,8 +1226,8 @@ plt.savefig("shap_bar.png", dpi=200)
 
 Suppose for one sample you obtain:
 
-- `Image = 72%`
-- `Text = 28%`
+- `Image = 62%`
+- `Text = 38%`
 
 Interpretation:
 
@@ -1218,13 +1237,14 @@ Interpretation:
 
 Suppose further that:
 
-- image dimensions around indices `120`, `211`, `455` are strongly positive
-- text dimensions around indices `830`, `914` are strongly negative
+- text dimensions around indices `120`, `211`, `455` are strongly positive (within 0:768, the text segment)
+- image dimensions around indices `900`, `1100` are strongly positive (within 768:1792, the image segment)
 
 Then you can say:
 
-- some visual semantic features strongly supported quality
-- a smaller set of text features decreased the score, likely corresponding to price complaint cues
+- some text semantic features strongly supported food quality
+- visual features from the image also contributed positively, likely corresponding to food presentation cues
+- a smaller set of text features decreased the price score, likely corresponding to price complaint cues
 
 ### Common Mistakes
 
@@ -1232,11 +1252,12 @@ Then you can say:
 - Ignoring the choice of background samples.
 - Reporting only signed sums and hiding magnitude.
 - Over-interpreting individual embedding dimensions semantically when no probing is performed.
+- Getting the modality grouping wrong: remember text is first (0:text_dim), image is second (text_dim:fusion_size).
 
 ### Debugging Tips
 
 - Use a representative background set, not random outliers.
-- Compare SHAP on the same sample across the four output heads.
+- Compare SHAP on the same sample across the five output heads.
 - If image dominates every sample, check whether the text branch is undertrained or pooled poorly.
 - If SHAP values are unstable, reduce explanation scope to the fusion head first.
 
@@ -1244,15 +1265,15 @@ Then you can say:
 
 Example method paragraph:
 
-> SHAP analysis was performed on the fused multimodal representation to quantify feature-level and modality-level contributions to each predicted score. The concatenated embedding of dimension 1536 was treated as the input to the prediction head, where the first 768 dimensions corresponded to image features and the remaining 768 dimensions corresponded to text features. SHAP values were computed for each target score, and modality-level contributions were obtained by aggregating SHAP magnitudes within each modality-specific segment.
+> SHAP analysis was performed on the fused multimodal representation to quantify feature-level and modality-level contributions to each predicted score. For the best model (Swin-B + PhoBERT), the concatenated embedding of dimension 1792 was treated as the input to the prediction head, where the first 768 dimensions corresponded to text features (PhoBERT) and the remaining 1024 dimensions corresponded to image features (Swin-B). SHAP values were computed for each of the five target scores, and modality-level contributions were obtained by aggregating SHAP magnitudes within each modality-specific segment.
 
 Example results paragraph:
 
-> For the analyzed sample, image features accounted for approximately 72% of the total absolute SHAP magnitude, indicating that the prediction was primarily driven by visual evidence. Text features contributed the remaining 28% and had a net negative signed effect, consistent with the review phrase indicating that the price was perceived as relatively high.
+> For the analyzed sample, image features accounted for approximately 62% of the total absolute SHAP magnitude, indicating that the prediction was primarily driven by visual evidence. Text features contributed the remaining 38% and had a net negative signed effect on the price score, consistent with the review phrase indicating that the price was perceived as relatively high.
 
 Example figure caption:
 
-> **Figure Z.** SHAP waterfall plot for the `overall_score` prediction. Positive contributions increased the predicted score relative to the baseline, while negative contributions decreased it. Grouped analysis showed stronger image contribution than text contribution.
+> **Figure Z.** SHAP waterfall plot for the `overall_satisfaction` prediction. Positive contributions increased the predicted score relative to the baseline, while negative contributions decreased it. Grouped analysis showed stronger image contribution than text contribution.
 
 ### Defense Questions
 
@@ -1265,13 +1286,14 @@ Strong answers:
 
 1. The fusion level directly answers multimodal contribution questions that spatial and attention explanations cannot answer.
 2. The base value is the expected model output over background data; SHAP explains how features move the prediction away from that baseline.
-3. I grouped SHAP values by embedding segment, summing image dimensions and text dimensions separately.
+3. I grouped SHAP values by embedding segment: text dimensions (0:768) and image dimensions (768:1792) for the Swin-B + PhoBERT model, summing absolute values within each group.
 4. SHAP explains contribution magnitude, but it does not localize pixels like Grad-CAM or show token interaction structure like attention.
 
 ### Key Takeaways
 
 - `SHAP` is the best tool in your pipeline for modality contribution analysis.
-- It naturally fits the `fusion_embedding` and the `MLP` head.
+- It naturally fits the `fusion_embedding` and the prediction head.
+- Remember that text comes first in the concatenation order when grouping SHAP values by modality.
 - It helps you answer the thesis-level question: *Was the model more influenced by image or text?*
 
 ---
@@ -1301,7 +1323,7 @@ In your multimodal project, LIME is useful for:
 
 Suppose the model predicts:
 
-`overall_score = 7.5`
+`overall_satisfaction = 7.5`
 
 LIME asks:
 
@@ -1373,7 +1395,7 @@ Text side:
 
 - original text: sequence of words or tokens
 - perturbations: many binary inclusion masks over words
-- model outputs: `[N, 4]` or `[N, 1]`
+- model outputs: `[N, 5]` or `[N, 1]`
 
 Unlike Grad-CAM and SHAP, the important objects in LIME are:
 
@@ -1402,13 +1424,13 @@ def build_image_predict_fn(multimodal_model, fixed_input_ids, fixed_attention_ma
             images = images / 255.0
 
         with torch.no_grad():
-            outputs = multimodal_model(
-                pixel_values=images,
+            preds = multimodal_model(
                 input_ids=fixed_input_ids.repeat(images.size(0), 1),
                 attention_mask=fixed_attention_mask.repeat(images.size(0), 1),
-            )["preds"]  # [N, 4]
+                pixel_values=images,
+            )  # [N, 5]
 
-        score = outputs[:, score_index:score_index + 1]
+        score = preds[:, score_index:score_index + 1]
         # Convert regression score into 2-column pseudo-probability-like output for LIME
         score = torch.sigmoid(score)
         two_col = torch.cat([1 - score, score], dim=1)
@@ -1441,13 +1463,13 @@ def build_text_predict_fn(multimodal_model, fixed_image_tensor, tokenizer, score
         images = fixed_image_tensor.repeat(len(text_list), 1, 1, 1).to(device)
 
         with torch.no_grad():
-            outputs = multimodal_model(
-                pixel_values=images,
+            preds = multimodal_model(
                 input_ids=enc["input_ids"],
                 attention_mask=enc["attention_mask"],
-            )["preds"]  # [N, 4]
+                pixel_values=images,
+            )  # [N, 5]
 
-        score = outputs[:, score_index:score_index + 1]
+        score = preds[:, score_index:score_index + 1]
         score = torch.sigmoid(score)
         two_col = torch.cat([1 - score, score], dim=1)
         return two_col.cpu().numpy()
@@ -1466,15 +1488,15 @@ Workflow:
 
 ```text
 Original Image
-  ↓
+  |
 Segment into superpixels
-  ↓
+  |
 Randomly hide subsets of superpixels
-  ↓
+  |
 Run multimodal model with text fixed
-  ↓
+  |
 Fit local linear surrogate
-  ↓
+  |
 Highlight positive / negative superpixels
 ```
 
@@ -1482,7 +1504,7 @@ Interpretation:
 
 - positive superpixels increase the selected score
 - negative superpixels decrease it
-- if defect superpixels are negative for `quality_score`, the explanation is sensible
+- if food presentation superpixels are negative for `food_score`, the explanation is sensible
 
 #### Text LIME
 
@@ -1490,31 +1512,31 @@ Workflow:
 
 ```text
 Original Review
-  ↓
+  |
 Remove or keep subsets of words
-  ↓
+  |
 Run multimodal model with image fixed
-  ↓
+  |
 Fit local linear surrogate
-  ↓
+  |
 Highlight important words
 ```
 
 Interpretation for your sentence:
 
-- `đẹp` should positively support `appearance_score`
+- `ngon` should positively support `food_score`
 - `giá` and `cao` should negatively affect `price_score`
 
 ### Example from My Project
 
 Image LIME might highlight:
 
-- damaged top-left packaging corner as negative evidence
-- clean product front face as positive evidence for appearance
+- poorly presented dish area as negative evidence for food quality
+- clean and attractive portions of the food as positive evidence
 
 Text LIME might highlight:
 
-- positive coefficient for `đẹp`
+- positive coefficient for `ngon`
 - negative coefficients for `giá` and `cao`
 
 This provides a local perturbation-based confirmation of what Grad-CAM and attention suggested.
@@ -1566,13 +1588,13 @@ Example method paragraph:
 
 Example results paragraph:
 
-> LIME image explanations highlighted damaged packaging regions as locally negative evidence for product quality, while text explanations identified the phrase `giá hơi cao` as locally decreasing the perceived price-related score. These findings were consistent with SHAP-based modality contribution analysis and the qualitative token attention patterns.
+> LIME image explanations highlighted poorly presented food areas as locally negative evidence for food quality, while text explanations identified the phrase `giá hơi cao` as locally decreasing the perceived price-related score. These findings were consistent with SHAP-based modality contribution analysis and the qualitative token attention patterns.
 
 ### Defense Questions
 
 1. What is the difference between LIME and SHAP?
 2. Why use LIME if Grad-CAM already explains images?
-3. What does “local explanation” mean?
+3. What does "local explanation" mean?
 4. What are LIME's main limitations?
 
 Strong answers:
@@ -1644,7 +1666,7 @@ Together, these produce a coherent scientific story.
 Your multimodal predictor is:
 
 $$
-\hat{y} = g([f_{\text{img}}(I); f_{\text{text}}(T)])
+\hat{y} = g([f_{\text{text}}(T); f_{\text{img}}(I)])
 $$
 
 Each XAI method explains a different mapping:
@@ -1661,7 +1683,7 @@ $$
 
 3. `SHAP`
 $$
-[e_{\text{img}}; e_{\text{text}}] \rightarrow \hat{y}
+[e_{\text{text}}; e_{\text{img}}] \rightarrow \hat{y}
 $$
 
 4. `LIME`
@@ -1674,18 +1696,18 @@ through local perturbation of interpretable units
 
 ```mermaid
 flowchart TD
-    A[Input Image] --> B[ConvNeXt]
-    C[Input Review] --> D[XLM-RoBERTa]
+    A[Input Images] --> B[Image Encoder e.g. Swin-B]
+    C[Input Review] --> D[Text Encoder e.g. PhoBERT]
 
     B --> E[feature_map]
-    B --> F[image_embedding 768]
+    B --> F[image_embedding 1024]
     D --> G[last_hidden_state]
     D --> H[text_embedding 768]
 
-    F --> I[fusion_embedding 1536]
-    H --> I
-    I --> J[MLP]
-    J --> K[4 quality scores]
+    H --> I[fusion_embedding 1792]
+    F --> I
+    I --> J[Fusion + MLP Head]
+    J --> K[5 quality scores]
 
     E -. attach .-> L[Grad-CAM]
     G -. attach .-> M[Attention Visualization]
@@ -1702,7 +1724,7 @@ Combined explanation view:
 |---|---|---:|
 | Grad-CAM | image feature map | `[B, C, Hf, Wf]` |
 | Attention | layer attention tensor | `[B, H, L, L]` |
-| SHAP | fusion embedding | `[B, 1536]` |
+| SHAP | fusion embedding | `[B, fusion_size]` |
 | LIME Image | image superpixels | interpretable segments |
 | LIME Text | word masks | interpretable tokens/words |
 
@@ -1711,11 +1733,10 @@ Combined explanation view:
 Implementation pattern:
 
 1. keep one canonical `forward()` for training and inference
-2. add optional switches:
-   - `return_intermediates=True`
-   - `output_attentions=True`
-3. create small wrapper classes per explainer
-4. avoid changing the trained architecture just for explanation
+2. for attention extraction, set `output_attentions=True` on the text encoder directly
+3. for Grad-CAM, access the image encoder's spatial feature maps via hooks or the `pytorch-grad-cam` library
+4. for SHAP, extract fused embeddings and wrap the prediction head
+5. avoid changing the trained architecture just for explanation
 
 Recommended explanation API:
 
@@ -1764,10 +1785,10 @@ This is stronger than isolated plots because it tells a cross-modal story.
 
 For the same sample, a coherent explanation might be:
 
-- Grad-CAM highlights damaged packaging and product surface
-- attention focuses on `đẹp`, `giá`, and `cao`
-- SHAP shows `72%` image contribution and `28%` text contribution
-- LIME confirms that masking the damaged region raises the predicted quality and removing `cao` raises the predicted price score
+- Grad-CAM highlights the food dish and restaurant interior
+- attention focuses on `ngon`, `giá`, and `cao`
+- SHAP shows `62%` image contribution and `38%` text contribution
+- LIME confirms that masking the poorly presented food region lowers the predicted food score and removing `cao` raises the predicted price score
 
 ### Common Mistakes
 
@@ -1778,14 +1799,14 @@ For the same sample, a coherent explanation might be:
 ### Debugging Tips
 
 - If methods disagree, do not hide it; investigate whether one branch is brittle.
-- Use disagreement as a research result. For example, attention may emphasize `đẹp` while SHAP shows the text branch still contributed less overall than the image branch.
+- Use disagreement as a research result. For example, attention may emphasize `ngon` while SHAP shows the text branch still contributed less overall than the image branch.
 - Track explanations per target head, not only per sample.
 
 ### Thesis Writing Example
 
 Example integration paragraph:
 
-> We designed a multi-level explainability framework aligned with the structure of the proposed multimodal architecture. Grad-CAM was attached to the final spatial stage of the ConvNeXt encoder, attention visualization was attached to XLM-RoBERTa attention matrices, SHAP was applied to the fused embedding and prediction head, and LIME was used as a perturbation-based validation mechanism on both modalities. This combination enabled spatial, lexical, and contribution-based interpretation within a single unified pipeline.
+> We designed a multi-level explainability framework aligned with the structure of the proposed multimodal architecture. Grad-CAM was attached to the final spatial stage of the Swin-B encoder, attention visualization was attached to PhoBERT attention matrices, SHAP was applied to the fused embedding and prediction head, and LIME was used as a perturbation-based validation mechanism on both modalities. This combination enabled spatial, lexical, and contribution-based interpretation within a single unified pipeline.
 
 ### Defense Questions
 
@@ -1821,15 +1842,16 @@ Students often understand each method separately but struggle to combine them in
 
 ### Intuition
 
-We will walk through one product sample:
+We will walk through one restaurant review sample:
 
-- image shows damaged packaging
-- review says: `Sản phẩm đẹp nhưng giá hơi cao`
+- image shows a poorly presented dish with an otherwise attractive restaurant interior
+- review says: `Đồ ăn ngon nhưng giá hơi cao`
 - model outputs:
-  - `Overall = 7.5`
-  - `Quality = 8.0`
+  - `Food = 8.0`
   - `Price = 5.5`
-  - `Appearance = 8.2`
+  - `Atmosphere = 7.8`
+  - `Service = 8.5`
+  - `Overall = 7.5`
 
 Then we will explain the sample as if an AI agent were reporting the decision.
 
@@ -1838,19 +1860,21 @@ Then we will explain the sample as if an AI agent were reporting the decision.
 Let the predicted outputs be:
 
 $$
-\hat{y} = [7.5, 8.0, 5.5, 8.2]
+\hat{y} = [8.0, 5.5, 7.8, 8.5, 7.5]
 $$
 
-Suppose SHAP decomposition for `overall_score` is:
+corresponding to `[food_score, price_score, atmosphere_score, service_score, overall_satisfaction]`.
+
+Suppose SHAP decomposition for `overall_satisfaction` is:
 
 $$
-7.5 = \phi_0 + \sum_{i=1}^{1536}\phi_i
+7.5 = \phi_0 + \sum_{i=1}^{1792}\phi_i
 $$
 
 with grouped magnitude:
 
 $$
-\Phi_{\text{img}} = 0.72,\qquad \Phi_{\text{text}} = 0.28
+\Phi_{\text{text}} = 0.38,\qquad \Phi_{\text{img}} = 0.62
 $$
 
 This means image evidence explains most of the departure from baseline, while text evidence contributes less but may still have a strong negative sign on the price dimension.
@@ -1859,49 +1883,62 @@ This means image evidence explains most of the departure from baseline, while te
 
 ```mermaid
 flowchart LR
-    A[Damaged Packaging Image] --> B[ConvNeXt]
-    C[Review: San pham dep nhung gia hoi cao] --> D[XLM-RoBERTa]
-    B --> E[image_embedding]
-    D --> F[text_embedding]
-    E --> G[Fusion]
-    F --> G
-    G --> H[MLP]
-    H --> I[Overall 7.5]
-    H --> J[Quality 8.0]
-    H --> K[Price 5.5]
-    H --> L[Appearance 8.2]
+    A[Restaurant Food Image] --> B[Image Encoder Swin-B]
+    C[Review: Do an ngon nhung gia hoi cao] --> D[Text Encoder PhoBERT]
+    B --> E[image_embedding 1024]
+    D --> F[text_embedding 768]
+    F --> G[Fusion]
+    E --> G
+    G --> H[MLP Head]
+    H --> I[Food 8.0]
+    H --> J[Price 5.5]
+    H --> K[Atmosphere 7.8]
+    H --> L[Service 8.5]
+    H --> M[Overall 7.5]
 ```
 
 ### Tensor Shapes
 
-For one sample:
+For one sample (Swin-B + PhoBERT):
 
 | Tensor | Shape |
 |---|---:|
 | image | `[1, 3, 224, 224]` |
-| feature map | `[1, 768, 7, 7]` |
-| image embedding | `[1, 768]` |
+| feature map | `[1, 1024, 7, 7]` |
+| image embedding | `[1, 1024]` |
 | input ids | `[1, L]` |
 | hidden states | `[1, L, 768]` |
 | text embedding | `[1, 768]` |
-| fusion embedding | `[1, 1536]` |
-| predictions | `[1, 4]` |
+| fusion embedding | `[1, 1792]` |
+| predictions | `[1, 5]` |
 
 ### PyTorch Implementation
 
-Pseudo-inference:
+Pseudo-inference using the actual model structure:
 
 ```python
-outputs = model(
-    pixel_values=image_tensor,
+# The fusion model returns just the predictions tensor
+preds = model(
     input_ids=input_ids,
     attention_mask=attention_mask,
-    output_attentions=True,
-    return_intermediates=True,
-)
+    pixel_values=image_tensor,
+)  # [1, 5]
 
-preds = outputs["preds"][0]
-overall, quality, price, appearance = preds.tolist()
+# factor_names = ['food', 'price', 'atmos', 'service', 'overall']
+food, price, atmos, service, overall = preds[0].tolist()
+```
+
+For attention extraction, access the text encoder directly:
+
+```python
+with torch.no_grad():
+    text_outputs = model.text_model.encoder(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        output_attentions=True,
+        return_dict=True,
+    )
+attentions = text_outputs.attentions  # tuple of [1, H, L, L] per layer
 ```
 
 ### Visualization
@@ -1910,31 +1947,31 @@ overall, quality, price, appearance = preds.tolist()
 
 Interpretation:
 
-- strongest activation around damaged package edge
-- secondary activation on scratched visible surface
+- strongest activation around the food dish and its plating
+- secondary activation on the restaurant interior elements
 - weak activation on background
 
 Meaning:
 
-- the image branch used defect evidence, which is desirable
+- the image branch used food presentation and ambiance evidence, which is desirable
 
 #### Attention Result
 
 Interpretation:
 
-- strong token emphasis on `đẹp`, `giá`, `cao`
+- strong token emphasis on `ngon`, `giá`, `cao`
 - `nhưng` connects contrasting sentiment segments
 
 Meaning:
 
-- the text branch recognized positive appearance evidence and negative price evidence in one sentence
+- the text branch recognized positive food quality evidence and negative price evidence in one sentence
 
 #### SHAP Result
 
 Interpretation:
 
-- image contribution `72%`
-- text contribution `28%`
+- text contribution `38%` (dims 0:768)
+- image contribution `62%` (dims 768:1792)
 - text has net negative signed contribution for `price_score`
 
 Meaning:
@@ -1946,7 +1983,7 @@ Meaning:
 
 Interpretation:
 
-- masking damaged superpixels increases predicted quality
+- masking the food dish superpixels decreases predicted food score
 - removing the phrase `giá hơi cao` increases predicted price score
 
 Meaning:
@@ -1957,35 +1994,37 @@ Meaning:
 
 #### Final Human Explanation
 
-> The model predicted an overall score of `7.5` because the product appears visually attractive but contains visible packaging damage. The image branch contributed most strongly to the decision by focusing on the dented package corner and scratched surface region, which reduced the quality-related assessment. The text branch contributed less overall, but it identified two important semantic cues: `đẹp`, which increased appearance-related confidence, and `giá hơi cao`, which decreased the price-related score. Taken together, the model judged the product as visually appealing but slightly overpriced and moderately affected by visible physical defects.
+> The model predicted an overall satisfaction of `7.5` because the restaurant food appears visually appetizing but has some presentation issues. The image branch contributed most strongly to the decision by focusing on the food dish area and restaurant interior, which supported the food and atmosphere scores. The text branch contributed less overall, but it identified two important semantic cues: `ngon`, which increased food-related confidence, and `giá hơi cao`, which decreased the price-related score. The service score of `8.5` was relatively high, suggesting neutral or positive service cues. Taken together, the model judged the restaurant experience as generally positive but somewhat affected by the perceived high price.
 
 ### Common Mistakes
 
-- Mixing up `quality_score` and `appearance_score` when interpreting image evidence.
-- Assuming that a high `overall_score` means all sub-scores are high.
+- Mixing up `food_score` and `atmosphere_score` when interpreting image evidence.
+- Assuming that a high `overall_satisfaction` means all sub-scores are high.
 - Reporting only one explanation method in the worked example.
+- Forgetting to include `service_score` in the analysis.
 
 ### Debugging Tips
 
-- Check whether image explanations differ meaningfully between `quality_score` and `appearance_score`.
-- Verify that the phrase `giá hơi cao` affects price more than appearance.
+- Check whether image explanations differ meaningfully between `food_score` and `atmosphere_score`.
+- Verify that the phrase `giá hơi cao` affects price more than food quality.
 - If image and text explanations contradict the final score strongly, inspect fusion weights and training labels.
+- Compare explanations across all five target heads.
 
 ### Thesis Writing Example
 
 Example case-study paragraph:
 
-> Figure X presents a representative multimodal explanation example. The product image contained visible packaging damage, while the associated review included both positive and negative sentiment cues. Grad-CAM localized the damaged packaging corner and surface scratch as salient visual evidence. Attention and LIME text analysis highlighted `đẹp` as a positive appearance cue and `giá hơi cao` as a negative price cue. SHAP analysis further showed that the final prediction was primarily image-driven, with approximately 72% of the total contribution magnitude attributable to visual features.
+> Figure X presents a representative multimodal explanation example. The restaurant image contained a dish with imperfect food presentation, while the associated review included both positive and negative sentiment cues. Grad-CAM localized the food dish area and restaurant interior elements as salient visual evidence. Attention and LIME text analysis highlighted `ngon` as a positive food quality cue and `giá hơi cao` as a negative price cue. SHAP analysis further showed that the final prediction was primarily image-driven, with approximately 62% of the total contribution magnitude attributable to visual features.
 
 ### Defense Questions
 
-1. Why is `appearance_score` high even though packaging is damaged?
+1. Why is `food_score` high even though food presentation is imperfect?
 2. Why is `price_score` lower than the others?
 3. Which explanation method gave the most important evidence here?
 
 Strong answers:
 
-1. The model separated product attractiveness from packaging defect severity; the product body appeared visually appealing even though packaging damage reduced overall quality.
+1. The model separated food taste perception (supported by the text cue `ngon`) from visual presentation; the food itself appeared appetizing despite imperfect plating.
 2. The review explicitly indicated that the price was somewhat high, so the text branch lowered the price-related score.
 3. No single method was sufficient. Grad-CAM showed where the visual evidence was, attention and LIME identified the price phrase, and SHAP quantified modality dominance.
 
@@ -2003,7 +2042,7 @@ Strong answers:
 
 ### Why it exists
 
-A roadmap is necessary because implementing all XAI methods at once can become overwhelming. A phased plan lets you build from a thesis-safe baseline to research-grade analysis.
+A roadmap is necessary because implementing all XAI methods at once can become overwhelming. A phased plan lets you build from a thesis-safe baseline to research-grade analysis. In your project, 21 experiments have already been conducted across multiple backbone combinations and fusion strategies, so the model training and evaluation infrastructure is mature.
 
 ### Problem it solves
 
@@ -2026,7 +2065,7 @@ Build explanation in layers:
 There is no new core formula here; the roadmap organizes which explanation mappings are implemented first:
 
 $$
-I \rightarrow \hat{y}, \quad T \rightarrow \hat{y}, \quad [e_{\text{img}}; e_{\text{text}}] \rightarrow \hat{y}
+I \rightarrow \hat{y}, \quad T \rightarrow \hat{y}, \quad [e_{\text{text}}; e_{\text{img}}] \rightarrow \hat{y}
 $$
 
 in increasing order of complexity and scientific depth.
@@ -2035,8 +2074,8 @@ in increasing order of complexity and scientific depth.
 
 #### Phase 1
 
-- attach `Grad-CAM` to `ConvNeXt`
-- attach attention visualization to `XLM-RoBERTa`
+- attach `Grad-CAM` to the Image Encoder (e.g., Swin-B)
+- attach attention visualization to the Text Encoder (e.g., PhoBERT)
 
 #### Phase 2
 
@@ -2056,7 +2095,7 @@ Phase complexity by tensor object:
 | Phase | Main explanation tensor/object |
 |---|---|
 | 1 | `[B, C, Hf, Wf]`, `[B, H, L, L]` |
-| 2 | `[B, 1536]` |
+| 2 | `[B, fusion_size]` (e.g. `[B, 1792]`) |
 | 3 | superpixels, word masks, perturbation batches |
 
 ### PyTorch Implementation
@@ -2065,8 +2104,8 @@ Phase complexity by tensor object:
 
 Minimum viable setup:
 
-- save intermediate `feature_map`
-- enable `output_attentions=True`
+- access the Image Encoder's spatial feature maps via hooks
+- enable `output_attentions=True` on the Text Encoder
 - generate one Grad-CAM heatmap per target head
 - generate one last-layer mean attention heatmap per review
 
@@ -2076,7 +2115,7 @@ Add:
 
 - `FusionHeadWrapper`
 - SHAP grouped modality analysis
-- per-head comparison: `overall`, `quality`, `price`, `appearance`
+- per-head comparison: `food`, `price`, `atmos`, `service`, `overall`
 
 #### Phase 3: Master's thesis / publication-grade
 
@@ -2087,6 +2126,7 @@ Add:
 - explanation agreement analysis
 - failure case taxonomy
 - quantitative faithfulness tests such as deletion/insertion or randomization sanity checks
+- cross-backbone comparison of explanations (e.g., Swin-B vs ConvNeXt Grad-CAMs)
 
 ### Visualization
 
@@ -2100,11 +2140,12 @@ Recommended deliverables by phase:
 
 ### Example from My Project
 
-If your submission deadline is close:
+Since 21 experiments have already been conducted with multiple backbone and fusion combinations:
 
-- implement Phase 1 first
-- if stable, add Phase 2
-- add Phase 3 only after training and evaluation are already reproducible
+- implement Phase 1 on the best model (Swin-B + PhoBERT + Cross-Attention)
+- if stable, add Phase 2 for modality contribution analysis
+- add Phase 3 only after explanation results from Phase 1 and 2 are reproducible
+- optionally compare Grad-CAM across different backbones to show backbone sensitivity
 
 ### Common Mistakes
 
@@ -2167,7 +2208,7 @@ Many students understand the idea of Grad-CAM, SHAP, attention, and LIME, but st
 Treat explainability as a thin layer around your trained model:
 
 - do not redesign the network
-- expose the necessary intermediate tensors
+- expose the necessary intermediate tensors via hooks or direct encoder access
 - create one wrapper per explanation method
 - save outputs in a reproducible format
 
@@ -2184,14 +2225,18 @@ $$
 
 ### Architecture Mapping
 
-Recommended project structure:
+Recommended project structure (matching the actual codebase):
 
 ```text
 project/
-├─ models/
-│  ├─ multimodal_model.py
-│  ├─ image_branch.py
-│  └─ text_branch.py
+├─ Models/
+│  ├─ FusionModel.py            # Concat fusion
+│  ├─ CrossAttentionFusion.py   # Bidirectional cross-attention
+│  ├─ GMUFusion.py              # Gated Multimodal Unit
+│  ├─ GatedCrossModalFusion.py  # Gated cross-modal conditioning
+│  ├─ FiLMFusion.py             # Feature-wise Linear Modulation
+│  ├─ ImageModel.py             # Image encoder wrapper
+│  └─ TextModel.py              # Text encoder wrapper
 ├─ explainability/
 │  ├─ gradcam_explainer.py
 │  ├─ attention_explainer.py
@@ -2210,23 +2255,35 @@ project/
 
 ### Tensor Shapes
 
-You should standardize these returns:
+In the actual codebase, unimodal models return tuples and fusion models return tensors. For explainability, you should extract intermediates by accessing encoders directly:
 
 ```python
-{
-    "preds": [B, 4],
-    "feature_map": [B, C, Hf, Wf],
-    "image_embedding": [B, 768],
-    "last_hidden_state": [B, L, 768],
-    "text_embedding": [B, 768],
-    "fusion_embedding": [B, 1536],
-    "attentions": tuple(num_layers) of [B, H, L, L],
-}
+# Unimodal models return: (predictions, raw_features)
+_, text_features = model.text_model(input_ids, attention_mask)     # text_features: [B, 768]
+_, image_features = model.image_model(pixel_values, num_images=num_images)  # image_features: [B, 1024]
+
+# For attention, access the encoder directly:
+text_outputs = model.text_model.encoder(
+    input_ids=input_ids,
+    attention_mask=attention_mask,
+    output_attentions=True,
+    return_dict=True,
+)
+# text_outputs.attentions: tuple(num_layers) of [B, H, L, L]
+
+# For image feature maps, register hooks on the image encoder:
+# feature_map: [B, 1024, 7, 7] for Swin-B with 224x224 input
+
+# Fusion embedding (text first, then image):
+fusion_embedding = torch.cat((text_features, image_features), dim=1)  # [B, 1792]
+
+# Predictions from fusion model:
+preds = model(input_ids, attention_mask, pixel_values)  # [B, 5]
 ```
 
 ### PyTorch Implementation
 
-#### 1. Grad-CAM on ConvNeXt
+#### 1. Grad-CAM on Image Encoder
 
 Current `pytorch-grad-cam` usage centers on choosing `target_layers`, creating a `GradCAM` object, and generating overlay heatmaps [9].
 
@@ -2238,7 +2295,7 @@ from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
 
-def explain_convnext_gradcam(multimodal_model, image_tensor, text_inputs, target_layer, score_index):
+def explain_image_gradcam(multimodal_model, image_tensor, text_inputs, target_layer, score_index):
     wrapper = MultiTargetScoreWrapper(
         multimodal_model=multimodal_model,
         fixed_input_ids=text_inputs["input_ids"],
@@ -2264,11 +2321,12 @@ Implementation notes:
 - set `model.eval()`
 - keep the text input fixed
 - run one target score at a time
-- choose a late spatial `ConvNeXt` layer
+- for multi-image reviews, explain one image at a time (typically the primary/first image)
+- choose a late spatial layer from the Image Encoder (e.g., last stage of Swin-B or ConvNeXt)
 
-#### 2. Attention Visualization on XLM-R
+#### 2. Attention Visualization on Text Encoder
 
-Current `transformers` outputs support `output_attentions=True`, returning one attention tensor per layer [10].
+Current `transformers` outputs support `output_attentions=True`, returning one attention tensor per layer [10]. Both PhoBERT and XLM-RoBERTa are RoBERTa-based and work identically.
 
 ```python
 import matplotlib.pyplot as plt
@@ -2276,10 +2334,10 @@ import seaborn as sns
 import torch
 
 
-def explain_xlmr_attention(text_model, tokenizer, text):
+def explain_text_attention(text_encoder, tokenizer, text):
     enc = tokenizer(text, return_tensors="pt")
     with torch.no_grad():
-        outputs = text_model(
+        outputs = text_encoder(
             **enc,
             output_attentions=True,
             return_dict=True,
@@ -2291,7 +2349,7 @@ def explain_xlmr_attention(text_model, tokenizer, text):
 
     fig, ax = plt.subplots(figsize=(8, 6))
     sns.heatmap(mean_map, xticklabels=tokens, yticklabels=tokens, cmap="magma", ax=ax)
-    ax.set_title("XLM-RoBERTa Last-Layer Mean Attention")
+    ax.set_title("Text Encoder Last-Layer Mean Attention")
     plt.xticks(rotation=45, ha="right")
     plt.yticks(rotation=0)
     plt.tight_layout()
@@ -2318,8 +2376,8 @@ import shap
 import numpy as np
 
 
-def explain_fusion_with_shap(fusion_head, background_fused, sample_fused, score_index):
-    wrapper = FusionHeadWrapper(fusion_head, score_index=score_index)
+def explain_fusion_with_shap(fusion_fc, factor_head, background_fused, sample_fused, score_index):
+    wrapper = FusionHeadWrapper(fusion_fc, factor_head, score_index=score_index)
     explainer = shap.DeepExplainer(wrapper, background_fused)
     shap_values = explainer.shap_values(sample_fused)
 
@@ -2331,17 +2389,22 @@ def explain_fusion_with_shap(fusion_head, background_fused, sample_fused, score_
 
     return {
         "explainer": explainer,
-        "shap_values": shap_array,  # [N, 1536] expected for one target
+        "shap_values": shap_array,  # [N, fusion_size] e.g. [N, 1792] for one target
     }
 
 
-def grouped_modality_report(shap_vec):
-    img = np.abs(shap_vec[:768]).sum()
-    txt = np.abs(shap_vec[768:]).sum()
-    total = img + txt + 1e-8
+def grouped_modality_report(shap_vec, text_dim=768):
+    """
+    Group SHAP values by modality.
+    Text comes FIRST in the concatenation (0:text_dim),
+    Image comes SECOND (text_dim:fusion_size).
+    """
+    txt = np.abs(shap_vec[:text_dim]).sum()
+    img = np.abs(shap_vec[text_dim:]).sum()
+    total = txt + img + 1e-8
     return {
-        "image_pct": 100 * img / total,
         "text_pct": 100 * txt / total,
+        "image_pct": 100 * img / total,
     }
 ```
 
@@ -2349,7 +2412,7 @@ Implementation notes:
 
 - begin with the prediction head rather than the full multimodal pipeline
 - use a representative background set, for example `50-200` fused training embeddings
-- generate per-output explanations
+- generate per-output explanations for all five targets
 
 #### 3a. SHAP grouped modality visualization
 
@@ -2357,12 +2420,12 @@ Implementation notes:
 import matplotlib.pyplot as plt
 
 
-def plot_modality_contribution(shap_vec, save_path):
-    img_mag = np.abs(shap_vec[:768]).sum()
-    txt_mag = np.abs(shap_vec[768:]).sum()
+def plot_modality_contribution(shap_vec, text_dim=768, save_path="shap_modality.png"):
+    txt_mag = np.abs(shap_vec[:text_dim]).sum()
+    img_mag = np.abs(shap_vec[text_dim:]).sum()
 
     plt.figure(figsize=(5, 4))
-    plt.bar(["Image", "Text"], [img_mag, txt_mag], color=["#d95f02", "#1b9e77"])
+    plt.bar(["Text", "Image"], [txt_mag, img_mag], color=["#1b9e77", "#d95f02"])
     plt.ylabel("Sum of absolute SHAP values")
     plt.title("Modality Contribution")
     plt.tight_layout()
@@ -2468,12 +2531,12 @@ For one example sample folder:
 
 ```text
 outputs/sample_0142/
-├─ gradcam_quality.png
-├─ gradcam_appearance.png
+├─ gradcam_food.png
+├─ gradcam_atmosphere.png
 ├─ attention_last_layer.png
 ├─ shap_overall_waterfall.png
 ├─ shap_modality.json
-├─ lime_image_quality.png
+├─ lime_image_food.png
 └─ lime_text_price.txt
 ```
 
@@ -2483,6 +2546,7 @@ outputs/sample_0142/
 - Forgetting to move background tensors to the correct device.
 - Failing to align normalization between training images and explanation images.
 - Not saving raw numeric explanation outputs alongside figures.
+- Getting the SHAP modality grouping backwards (text is first, not image).
 
 ### Debugging Tips
 
@@ -2495,7 +2559,7 @@ outputs/sample_0142/
 
 Example implementation paragraph:
 
-> The explainability pipeline was implemented in PyTorch using method-specific wrappers around the trained multimodal network. Grad-CAM was generated using the `pytorch-grad-cam` library on the final spatial ConvNeXt feature maps, transformer attention was extracted from XLM-RoBERTa via `output_attentions=True`, SHAP analysis was performed on the fused embedding and prediction head, and LIME explanations were obtained by perturbing image superpixels and review words while holding the complementary modality fixed.
+> The explainability pipeline was implemented in PyTorch using method-specific wrappers around the trained multimodal network. Grad-CAM was generated using the `pytorch-grad-cam` library on the final spatial Swin-B feature maps, transformer attention was extracted from PhoBERT via `output_attentions=True`, SHAP analysis was performed on the fused embedding and prediction head with the first 768 dimensions corresponding to text and the remaining 1024 to image features, and LIME explanations were obtained by perturbing image superpixels and review words while holding the complementary modality fixed.
 
 ### Defense Questions
 
@@ -2506,7 +2570,7 @@ Example implementation paragraph:
 Strong answers:
 
 1. Wrappers preserve training code and isolate explainability logic, which makes the system safer and easier to debug.
-2. It directly receives the multimodal representation and has manageable dimensionality.
+2. It directly receives the multimodal representation and has manageable dimensionality (e.g., 1792 for Swin-B + PhoBERT).
 3. I fixed checkpoints, stored background sets, used deterministic seeds where possible, and saved raw explanation values in addition to figures.
 
 ### Key Takeaways
@@ -2570,11 +2634,12 @@ Defense framing:
 
 ### Tensor Shapes
 
-Keep one memorable shape summary ready:
+Keep one memorable shape summary ready (using the best model as example):
 
-- image feature map: `[B, C, H, W]`
-- attention tensor: `[B, H, L, L]`
-- fusion embedding: `[B, 1536]`
+- image feature map: `[B, 1024, 7, 7]` (Swin-B)
+- attention tensor: `[B, 12, L, L]` (PhoBERT)
+- fusion embedding: `[B, 1792]` (768 text + 1024 image)
+- predictions: `[B, 5]` (food, price, atmos, service, overall)
 
 This makes your answers sound concrete and implementation-grounded.
 
@@ -2582,16 +2647,16 @@ This makes your answers sound concrete and implementation-grounded.
 
 What to say if asked about code:
 
-- Grad-CAM used a wrapper that fixed the text input and backpropagated from one score head into the final spatial ConvNeXt layer.
-- Attention visualization used `output_attentions=True` in `transformers`.
-- SHAP used a head wrapper over the `1536`-dimensional fusion embedding.
+- Grad-CAM used a wrapper that fixed the text input and backpropagated from one score head into the final spatial feature maps of the Image Encoder (e.g., Swin-B).
+- Attention visualization used `output_attentions=True` on the Text Encoder (e.g., PhoBERT) via `transformers`.
+- SHAP used a head wrapper over the fusion embedding (e.g., 1792-dimensional for Swin-B + PhoBERT, with text first then image).
 - LIME used perturbation-based prediction functions that kept one modality fixed while perturbing the other.
 
 ### Visualization
 
 What to show during defense:
 
-1. one architecture diagram
+1. one architecture diagram showing the full pipeline with all five outputs
 2. one sample with all four explanation outputs
 3. one table of method strengths and limitations
 4. one failure case
@@ -2600,16 +2665,16 @@ What to show during defense:
 
 #### Explain it in simple language
 
-- `Grad-CAM`: It shows which part of the product image the model looked at.
+- `Grad-CAM`: It shows which part of the restaurant/food image the model looked at.
 - `Attention`: It shows which words in the review interacted strongly.
 - `SHAP`: It measures how much image and text each contributed to the final score.
 - `LIME`: It checks what happens if we hide parts of the image or remove words.
 
 #### Explain it in technical language
 
-- `Grad-CAM` computes gradient-weighted activation maps from the final spatial ConvNeXt feature maps.
-- `Attention visualization` inspects the self-attention matrices of XLM-RoBERTa, typically aggregated across heads or layers.
-- `SHAP` estimates additive feature contributions relative to a baseline, which in our case is applied to the fused `1536`-dimensional representation.
+- `Grad-CAM` computes gradient-weighted activation maps from the final spatial feature maps of the Image Encoder (e.g., Swin-B with 1024-channel, 7x7 spatial maps).
+- `Attention visualization` inspects the self-attention matrices of the Text Encoder (e.g., PhoBERT), typically aggregated across heads or layers.
+- `SHAP` estimates additive feature contributions relative to a baseline, which in our case is applied to the fused representation (e.g., 1792-dimensional, text first then image).
 - `LIME` fits a local surrogate model around a sample using superpixel or word perturbations.
 
 #### Explain it to a lecturer
@@ -2636,25 +2701,27 @@ What to show during defense:
 
 Example discussion paragraph:
 
-> During the defense, the explainability component can be summarized as a layered interpretation strategy. Rather than claiming that a single method fully explains the model, the thesis demonstrates that different methods illuminate different representational stages. This design choice is particularly appropriate for multimodal quality assessment, where visual defects, textual sentiment, and fusion-level interactions all influence the final decision.
+> During the defense, the explainability component can be summarized as a layered interpretation strategy. Rather than claiming that a single method fully explains the model, the thesis demonstrates that different methods illuminate different representational stages. This design choice is particularly appropriate for multimodal restaurant review quality assessment, where food presentation, textual sentiment, and fusion-level interactions all influence the final decision.
 
 ### Defense Questions
 
 #### Common defense questions
 
-1. Why did you choose ConvNeXt and XLM-RoBERTa?
-2. Why is explainability necessary for product quality assessment?
+1. Why did you choose Swin-B and PhoBERT as the best model?
+2. Why is explainability necessary for restaurant review quality assessment?
 3. Why is attention not always explanation?
 4. Why did you apply SHAP to the fusion layer instead of raw inputs?
 5. What is the biggest limitation of your explainability pipeline?
+6. Why 5 target scores instead of a single overall rating?
 
 #### Strong model answers
 
-1. ConvNeXt provides strong visual representation quality while remaining compatible with feature-map-based explanation. XLM-RoBERTa is appropriate for multilingual and Vietnamese-friendly text understanding.
-2. Product quality judgments should be evidence-based, especially when different modalities may disagree or contain noisy signals.
+1. Swin-B provides strong spatial feature learning through its shifted-window self-attention mechanism, producing rich 1024-dimensional visual representations well-suited for Grad-CAM-based explanation. PhoBERT is pre-trained specifically on Vietnamese text data, making it the most appropriate text encoder for Vietnamese restaurant reviews. Among all 21 experiments tested, this combination with Cross-Attention fusion achieved the lowest Mean MAE of 1.1079.
+2. Restaurant review quality judgments should be evidence-based, especially when different modalities may disagree or contain noisy signals. Explainability helps validate that the model uses legitimate food and service cues rather than spurious patterns.
 3. Attention shows interaction structure, but not necessarily the final causal importance with respect to the prediction [5].
 4. The fusion layer directly represents multimodal combination and is computationally more tractable than explaining raw high-dimensional inputs.
 5. No single explanation method is complete; each one is partial and should be interpreted together with quantitative evaluation and failure analysis.
+6. Restaurant quality is inherently multi-dimensional. A single rating conflates food taste, pricing, ambiance, and service into one number. Predicting five separate scores (food, price, atmosphere, service, overall satisfaction) allows the model to capture distinct quality aspects, and the explainability framework can then show which visual and textual evidence supports each specific dimension.
 
 #### Difficult follow-up questions
 
@@ -2686,10 +2753,12 @@ Example discussion paragraph:
 6. Wiegreffe, S., and Pinter, Y. (2019). *Attention is not not Explanation*. EMNLP-IJCNLP. https://arxiv.org/abs/1908.04626
 7. Liu, Z., Mao, H., Wu, C.-Y., Feichtenhofer, C., Darrell, T., and Xie, S. (2022). *A ConvNet for the 2020s*. CVPR. https://arxiv.org/abs/2201.03545
 8. Conneau, A., Khandelwal, K., Goyal, N., et al. (2020). *Unsupervised Cross-lingual Representation Learning at Scale*. ACL. XLM-RoBERTa paper. https://arxiv.org/abs/1911.02116
-9. `pytorch-grad-cam` documentation and tutorial examples, including target layer selection and ConvNeXt-specific examples. https://github.com/jacobgil/pytorch-grad-cam
-10. Hugging Face `transformers` documentation for model outputs, XLM-RoBERTa, and attention outputs. https://huggingface.co/docs/transformers/
+9. `pytorch-grad-cam` documentation and tutorial examples, including target layer selection and vision transformer-specific examples. https://github.com/jacobgil/pytorch-grad-cam
+10. Hugging Face `transformers` documentation for model outputs, PhoBERT, XLM-RoBERTa, and attention outputs. https://huggingface.co/docs/transformers/
 11. `SHAP` documentation for `DeepExplainer`, `GradientExplainer`, `KernelExplainer`, and plotting functions. https://shap.readthedocs.io/
 12. `LIME` documentation and source repository for `lime_image` and `lime_text`. https://lime-ml.readthedocs.io/ and https://github.com/marcotcr/lime
+13. Liu, Z., Lin, Y., Cao, Y., Hu, H., Wei, Y., Zhang, Z., Lin, S., and Guo, B. (2021). *Swin Transformer: Hierarchical Vision Transformer using Shifted Windows*. ICCV. https://arxiv.org/abs/2103.14030
+14. Nguyen, D. Q., and Nguyen, A. T. (2020). *PhoBERT: Pre-trained language models for Vietnamese*. Findings of EMNLP. https://arxiv.org/abs/2003.00744
 
 ---
 
@@ -2697,9 +2766,9 @@ Example discussion paragraph:
 
 If you want the most defensible and practical explainability stack for your current architecture, the strongest order is:
 
-1. `Grad-CAM` on the last spatial `ConvNeXt` feature map
-2. attention visualization from `XLM-RoBERTa`
-3. `SHAP` on the `1536`-dimensional fusion embedding and `MLP`
+1. `Grad-CAM` on the last spatial feature maps of the Image Encoder (e.g., Swin-B `[B, 1024, 7, 7]`)
+2. attention visualization from the Text Encoder (e.g., PhoBERT)
+3. `SHAP` on the fusion embedding (e.g., 1792-dimensional for Swin-B + PhoBERT, text first then image) and prediction head
 4. `LIME` as a local perturbation-based validation method
 
 This gives you:
@@ -2708,5 +2777,7 @@ This gives you:
 - text evidence
 - modality contribution
 - local robustness checks
+
+The five target scores (`food_score`, `price_score`, `atmosphere_score`, `service_score`, `overall_satisfaction`) each deserve separate explanation analysis, as different scores may rely on different visual and textual evidence.
 
 That combination is strong enough for a master's-level thesis and can be extended toward publication-quality research with faithfulness metrics, sanity checks, and counterfactual analysis.
