@@ -63,3 +63,20 @@ from xai.attention_explainer import (
     AttentionExplainer,
     inspect_tokenization,
 )
+
+try:
+    from xai.shap_explainer import (
+        FusionHeadWrapper,
+        extract_fused_embeddings,
+        select_background,
+        compute_shap_values,
+        modality_contribution,
+        additivity_check,
+        plot_modality_contribution,
+        plot_modality_single_target,
+        SHAPExplainer,
+        run_ablation_check,
+    )
+except ImportError:
+    # shap library not installed — Phase 4 functions unavailable
+    pass
