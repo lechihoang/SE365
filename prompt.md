@@ -77,12 +77,12 @@ Understand:
 Read carefully:
 
 ```text
-xai/__init__.py
-xai/config.py
-xai/utils.py
-xai/notebooks/Phase1_Infrastructure_Verification.ipynb
-Phase_1_IMPLEMENTATION_NOTES.md
-Phase_1_Infrastructure_Proposal.md
+@__init__.py
+@config.py
+@utils.py
+@Phase1_Infrastructure_Verification.ipynb
+@Phase_1_IMPLEMENTATION_NOTES.md
+@Phase_1_Infrastructure_Proposal.md
 ```
 
 You must understand what Phase 1 already implemented and verified.
