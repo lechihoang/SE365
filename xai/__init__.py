@@ -48,4 +48,6 @@ from xai.utils import (
     get_prediction,
     save_figure,
     save_raw_values,
+    enable_eager_attention,
+    normalize_feature_map_to_bchw,
 )

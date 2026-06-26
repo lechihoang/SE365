@@ -15,6 +15,7 @@ import os
 import sys
 import json
 import ast
+import math
 import hashlib
 import random
 import datetime
@@ -31,6 +32,7 @@ from xai.config import (
     TARGET_NAMES, FACTOR_NAMES, LABEL_COLS, INDEX_TO_FACTOR,
     DEFAULT_SEED, DEFAULT_DPI, DEFAULT_MAX_LENGTH, DEFAULT_MAX_IMAGES,
     BEST_TEXT_MODEL, BEST_IMAGE_MODEL, BEST_FUSION_TYPE,
+    IMAGE_FEATURE_DIM,
 )
 
 logger = logging.getLogger('xai')
@@ -81,6 +83,153 @@ def set_seed(seed: int = DEFAULT_SEED) -> None:
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Eager Attention — required for output_attentions=True with recent transformers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def enable_eager_attention(model: nn.Module) -> None:
+    """Switch text encoder from sdpa to eager attention so output_attentions works.
+
+    Recent HuggingFace transformers defaults to sdpa attention, which does not
+    return attention weights. This function patches the encoder in-place to use
+    eager attention. Safe to call on an already-loaded model; does not affect
+    weights or predictions.
+
+    Args:
+        model: The full multimodal model (e.g., CrossAttentionFusion).
+               Accesses model.text_model.encoder internally.
+    """
+    encoder = None
+    if hasattr(model, 'text_model') and hasattr(model.text_model, 'encoder'):
+        encoder = model.text_model.encoder
+    elif hasattr(model, 'encoder'):
+        encoder = model.encoder
+
+    if encoder is None:
+        print('[XAI] WARNING: Could not find text encoder for eager attention switch.')
+        return
+
+    # HuggingFace stores config on the model; update it
+    if hasattr(encoder, 'config'):
+        encoder.config._attn_implementation = 'eager'
+        encoder.config.attn_implementation = 'eager'
+
+    # Patch each attention layer from SdpaAttention → eager RobertaSelfAttention
+    try:
+        from transformers.models.roberta.modeling_roberta import RobertaSelfAttention
+    except ImportError:
+        try:
+            from transformers.models.xlm_roberta.modeling_xlm_roberta import XLMRobertaSelfAttention as RobertaSelfAttention
+        except ImportError:
+            print('[XAI] WARNING: Could not import RobertaSelfAttention. Attention may not work.')
+            return
+
+    patched = 0
+    if hasattr(encoder, 'encoder') and hasattr(encoder.encoder, 'layer'):
+        for layer_module in encoder.encoder.layer:
+            attn = layer_module.attention.self
+            cls_name = type(attn).__name__
+            if 'Sdpa' in cls_name or 'Flash' in cls_name:
+                eager_attn = RobertaSelfAttention(encoder.config)
+                eager_attn.load_state_dict(attn.state_dict())
+                eager_attn.to(next(attn.parameters()).device)
+                layer_module.attention.self = eager_attn
+                patched += 1
+
+    if patched > 0:
+        print(f'[XAI] Patched {patched} attention layers from sdpa → eager')
+    else:
+        print('[XAI] Text encoder already uses eager attention (or no patch needed)')
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Feature Map Normalization — handles all timm output formats for Grad-CAM
+# ══════════════════════════════════════════════════════════════════════════════
+
+def normalize_feature_map_to_bchw(
+    tensor: torch.Tensor,
+    expected_channels: int = IMAGE_FEATURE_DIM,
+) -> Tuple[torch.Tensor, Dict[str, Any]]:
+    """Convert a spatial feature map from any format to [B, C, H, W].
+
+    Handles all common formats produced by timm vision transformers:
+      - [B, C, H, W]  — already correct (ConvNeXt, some configs)
+      - [B, H, W, C]  — channel-last (Swin-B default in timm)
+      - [B, N, C]     — sequence format where N = H*W
+      - [B, C, N]     — transposed sequence format
+
+    Args:
+        tensor: Feature map tensor in any of the above formats.
+        expected_channels: Number of channels to detect (default: 1024 for Swin-B).
+
+    Returns:
+        Tuple of (normalized_tensor [B, C, H, W], metadata dict).
+
+    Raises:
+        ValueError: If the tensor format cannot be determined.
+    """
+    shape = tensor.shape
+    ndim = len(shape)
+    meta = {
+        'raw_shape': list(shape),
+        'detected_format': None,
+        'reshape_required': False,
+        'reshape_rule': None,
+        'target_shape': None,
+    }
+
+    if ndim == 4:
+        B, d1, d2, d3 = shape
+
+        # [B, C, H, W] — channels-first
+        if d1 == expected_channels and d2 > 1 and d3 > 1:
+            meta['detected_format'] = 'BCHW'
+            meta['target_shape'] = list(shape)
+            return tensor, meta
+
+        # [B, H, W, C] — channels-last (Swin-B in timm)
+        if d3 == expected_channels and d1 > 1 and d2 > 1:
+            out = tensor.permute(0, 3, 1, 2).contiguous()
+            meta['detected_format'] = 'BHWC'
+            meta['reshape_required'] = True
+            meta['reshape_rule'] = 'permute(0, 3, 1, 2)'
+            meta['target_shape'] = list(out.shape)
+            return out, meta
+
+    elif ndim == 3:
+        B, d1, d2 = shape
+
+        # [B, N, C] — sequence format
+        if d2 == expected_channels:
+            N = d1
+            H = W = int(math.sqrt(N))
+            if H * W == N:
+                out = tensor.permute(0, 2, 1).reshape(B, expected_channels, H, W).contiguous()
+                meta['detected_format'] = 'BNC'
+                meta['reshape_required'] = True
+                meta['reshape_rule'] = f'permute(0,2,1).reshape(B,{expected_channels},{H},{W})'
+                meta['target_shape'] = list(out.shape)
+                return out, meta
+
+        # [B, C, N] — transposed sequence
+        if d1 == expected_channels:
+            N = d2
+            H = W = int(math.sqrt(N))
+            if H * W == N:
+                out = tensor.reshape(B, expected_channels, H, W).contiguous()
+                meta['detected_format'] = 'BCN'
+                meta['reshape_required'] = True
+                meta['reshape_rule'] = f'reshape(B,{expected_channels},{H},{W})'
+                meta['target_shape'] = list(out.shape)
+                return out, meta
+
+    raise ValueError(
+        f'Cannot normalize feature map with shape {list(shape)} and '
+        f'expected_channels={expected_channels}. '
+        f'Supported formats: [B,C,H,W], [B,H,W,C], [B,N,C], [B,C,N].'
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -168,6 +317,7 @@ def load_model(
     text_model_name: Optional[str] = None,
     image_model_name: Optional[str] = None,
     fusion_type: Optional[str] = None,
+    xai_mode: bool = True,
 ) -> Tuple[nn.Module, Dict[str, Any]]:
     """Load trained multimodal model from experiment directory.
 
@@ -179,6 +329,8 @@ def load_model(
         text_model_name: Override text backbone. Read from config if None.
         image_model_name: Override image backbone. Read from config if None.
         fusion_type: Override fusion type. Read from config if None.
+        xai_mode: If True (default), patches text encoder to use eager attention
+                  so output_attentions=True works. Does not affect weights or predictions.
 
     Returns:
         Tuple of (model in eval mode, config dict)
@@ -252,6 +404,9 @@ def load_model(
 
     model.to(device)
     model.eval()
+
+    if xai_mode:
+        enable_eager_attention(model)
 
     total_params = sum(p.numel() for p in model.parameters())
     print(f'[XAI] Model loaded: {model.__class__.__name__} ({total_params:,} params) on {device}')
