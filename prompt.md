@@ -1,619 +1,655 @@
 # ROLE
 
-You are a Principal AI Research Scientist specializing in:
+You are a Principal AI Engineer, Senior ML Infrastructure Engineer, and Principal Explainable AI Research Scientist.
 
-- Explainable AI (XAI)
-- Computer Vision
-- NLP
-- Multi-modal Deep Learning
+You are an expert in
+
+- Explainable AI (Grad-CAM, Attention, SHAP, LIME)
 - PyTorch
-- Swin Transformer
-- PhoBERT
-- SHAP
-- LIME
-- Grad-CAM
-- Transformer Interpretability
+- Google Colab
 - Software Architecture
-- Research Methodology
-- Reproducible Machine Learning
+- MLOps
+- Research Codebase Design
+- Reproducible Deep Learning
+- Clean Code
+- Notebook Engineering
 
-You are also an experienced MSc/PhD thesis supervisor.
+Your responsibility is NOT only to implement the proposal.
 
-Your responsibility is **NOT** to implement code.
-
-Your responsibility is to produce **industry-grade implementation proposals** that are sufficiently detailed for another AI coding model to implement without requiring further clarification.
+Your responsibility is to implement it in a way that is consistent with the entire existing codebase so that later Phases (Phase 2 → Phase 8) can reuse the infrastructure without requiring refactoring.
 
 ---
 
 # GOAL
 
-Read the current XAI proposal and generate **one detailed implementation proposal for each XAI Phase**.
+Read the entire codebase and all required documents to fully understand the current project.
 
-There are **8 phases**, therefore generate **8 independent Markdown files**.
+Especially study carefully
 
-Example:
+**Phase_1_Infrastructure_Proposal.md**
 
-```
-docs/
+This document is the implementation specification.
 
-XAI/
+Current proposal:
 
-Phase_1_Infrastructure_Proposal.md
+After understanding the whole project,
 
-Phase_2_GradCAM_Proposal.md
+implement **Phase 1** completely.
 
-Phase_3_Attention_Proposal.md
-
-...
-
-Phase_8_Thesis_Visualization_Proposal.md
-```
-
-Each proposal should become a complete implementation specification.
-
-The coding AI should be able to read only one Phase proposal and implement that Phase correctly.
+The implementation quality should be production-ready, research-grade, reproducible, maintainable, and fully consistent with the existing project architecture.
 
 ---
 
 # CONTEXT
 
-Before writing anything, carefully read and understand:
+Before writing any code,
 
-1. the entire codebase
+carefully study the entire project.
 
-2. current architecture
+Understand
 
-3. experiment pipeline
+- current project architecture
+- current folder structure
+- current experiment workflow
+- current notebook workflow
+- current .py + notebook pattern
+- training pipeline
+- testing pipeline
+- inference pipeline
+- experiment folder organization
+- Google Drive artifact organization
+- checkpoint loading
+- config loading
+- preprocessing
+- image loading
+- logging
+- output saving
+- utility functions
 
-4. current best experiment
+Do NOT redesign the project.
 
-5. dataset
-
-6. current folder structure
-
-7. all existing XAI related files
-
-especially
-
-- Explainable_AI_for_Multimodal_Product_Quality_Assessment.md
-- XAI_Survival_Guide.md
-- XAI_proposal.md
-
-The current XAI proposal is the primary design document.
-
-DO NOT redesign the overall XAI roadmap.
-
-Its philosophy and phase ordering are already approved.
-
-Only refine each Phase into a much more detailed implementation proposal.
-
-Current proposal:
+Reuse the current implementation style whenever possible.
 
 ---
 
-# REQUIREMENTS
+# IMPLEMENTATION REQUIREMENTS
 
-For EACH Phase,
+## 1.
 
-create a standalone proposal.
+Follow the coding style already used throughout the codebase.
 
-Every proposal should include ALL of the following sections.
+The new implementation should look as if it was written by the same developer who wrote the existing experiments.
 
----
-
-## 1. Purpose
-
-Explain
-
-- why this phase exists
-- what scientific question it answers
-- why it is needed in this thesis
+Do not suddenly introduce another coding style.
 
 ---
 
-## 2. Objectives
+## 2.
 
-List
+Study all existing notebooks.
 
-Functional objectives
+Understand
 
-Research objectives
+- notebook organization
+- parameter cells
+- import cells
+- drive mounting
+- path configuration
+- logging style
+- visualization style
 
-Expected contributions
-
----
-
-## 3. Inputs
-
-Exactly which files
-
-which checkpoints
-
-which experiment outputs
-
-which datasets
-
-which model components
-
-will be used.
+Implement Phase 1 notebook using exactly the same workflow.
 
 ---
 
-## 4. Outputs
+## 3.
 
-Exactly what artifacts will be generated.
+Study how experiment artifacts are currently stored.
+
+Especially
+
+Google Drive
+
+```
+/content/drive/MyDrive/SE365
+```
+
+Reuse the existing storage strategy.
+
+Do NOT invent another folder hierarchy.
+
+---
+
+## 4.
+
+Automatically decide which outputs belong inside the repository
+
+and
+
+which outputs belong on Google Drive.
+
+General principle
+
+Repository
+
+- reusable code
+- notebooks
+- configs
+- documentation
+- utilities
+- wrappers
+
+Drive
+
+- checkpoints
+- json outputs
+- csv outputs
+- raw values
+- logs
+- figures
+- reports
+- temporary artifacts
+- large generated files
+
+Reuse the same philosophy already used by existing experiments.
+
+---
+
+## 5.
+
+Whenever a notebook cell generates any file,
+
+immediately print
+
+```
+Saved:
+
+<absolute path>
+```
+
+Examples
+
+```
+Saved:
+
+/content/drive/MyDrive/SE365/xai/phase1/verification.json
+```
+
+```
+Saved:
+
+/content/drive/MyDrive/SE365/xai/phase1/sample_prediction.json
+```
+
+```
+Saved:
+
+/content/drive/MyDrive/SE365/xai/phase1/log.txt
+```
+
+The user must always know where every generated artifact is located.
+
+---
+
+## 6.
+
+Every notebook section must clearly print progress.
 
 Example
 
-images
+```
+============================
 
-json
+Phase 1
 
-csv
+Step 4/10
 
-numpy
+Load Model
 
-html
+============================
+```
 
-markdown
+Every important step should print
+
+- Started
+- Finished
+- Execution time
+
+---
+
+## 7.
+
+All notebook cells must be independent.
+
+Running one cell twice
+
+must never corrupt outputs
+
+must never duplicate folders
+
+must never overwrite important files unexpectedly.
+
+Use
+
+```
+exist_ok=True
+```
+
+when appropriate.
+
+---
+
+## 8.
+
+Never hardcode paths.
+
+Everything should come from
+
+```
+PROJECT_ROOT
+
+DRIVE_ROOT
+
+EXP_ID
+
+CONFIG
+
+```
+
+Users should only need to modify
+
+one configuration cell.
+
+---
+
+## 9.
+
+Every generated figure
+
+JSON
+
+CSV
 
 report
 
-etc.
-
----
-
-## 5. Architecture Position
-
-Clearly explain
-
-where this phase attaches to the current multimodal architecture.
-
-Show
-
-Image branch
-
-↓
-
-Text branch
-
-↓
-
-Fusion
-
-↓
-
-Prediction heads
-
-↓
-
-Where this XAI method attaches.
-
----
-
-## 6. Detailed Implementation Plan
-
-This is the most important section.
-
-Explain
-
-step-by-step
-
-A-Z
-
-what will be implemented.
-
-No ambiguity.
-
-No missing steps.
-
-The coding AI should know exactly what to build.
-
----
-
-## 7. Folder Structure
-
-Explain
-
-where every generated artifact should be stored.
-
-Follow current project structure.
-
-Clearly separate
-
-code
-
-artifacts
-
-temporary outputs
-
-final outputs
-
-raw values
-
-figures
-
-reports.
-
----
-
-## 8. Required Code Modules
-
-List every Python module expected.
-
-For example
-
-```
-gradcam.py
-
-attention.py
-
-hooks.py
-
-utils.py
-
-wrapper.py
-
-```
-
-Explain the responsibility of each file.
-
----
-
-## 9. Required Notebook
-
-Describe exactly
-
-what notebook should exist
-
-what cells it contains
-
-what each section does
-
-what figures it should generate
-
-what user parameters should exist.
-
----
-
-## 10. Algorithm
-
-Describe the implementation algorithm
-
-step by step
-
-without writing code.
-
-Pseudo workflow is encouraged.
-
----
-
-## 11. Expected Results
-
-Describe
-
-what successful outputs should look like.
+must include metadata.
 
 Examples
 
-correct GradCAM
-
-reasonable SHAP
-
-reasonable token importance
-
-etc.
-
----
-
-## 12. Validation
-
-How to verify
-
-that this phase is working correctly.
-
-Include
-
-sanity checks
-
-quantitative checks
-
-visual checks
-
-failure detection
-
-consistency checks.
+- experiment id
+- timestamp
+- checkpoint
+- git commit (if available)
+- device
+- seed
+- model names
+- fusion type
+- target names
 
 ---
 
-## 13. Risks
+## 10.
 
-DO NOT merely list risks.
+Every utility function
 
-Instead,
+must include
 
-for EVERY risk,
-
-propose the best implementation strategy.
-
-Use current best practices from academia and industry.
-
-Every risk must contain
-
-Problem
-
-↓
-
-Reason
-
-↓
-
-Recommended implementation
-
-↓
-
-Alternative implementation
-
-↓
-
-Trade-offs
-
-↓
-
-Final recommendation.
-
-For example,
-
-instead of writing
-
-"Multi-image GradCAM"
-
-propose
-
-- image-level GradCAM
-- pooled-feature GradCAM
-- weighted-image GradCAM
-- highest-contribution image
-- all-images visualization
-
-compare them,
-
-then conclude
-
-which implementation should be used in THIS thesis,
-
-and explain WHY.
-
-Apply this level of analysis to EVERY risk in EVERY Phase.
+- type hints
+- docstrings
+- comments explaining non-obvious logic
 
 ---
 
-## 14. Best Practices
+## 11.
 
-Recommend
-
-industry-grade
-
-research-grade
-
-implementation practices.
+Implement robust exception handling.
 
 Examples
 
-logging
+checkpoint missing
 
-checkpointing
+CSV missing
 
-deterministic execution
+image missing
 
-artifact naming
+Drive unavailable
 
-reproducibility
+GPU unavailable
 
-memory optimization
+invalid config
 
-batch processing
+Instead of crashing,
 
-visual consistency
-
-etc.
+print meaningful messages explaining how to fix the issue.
 
 ---
 
-## 15. Deliverables
+## 12.
 
-List every file
+The notebook should contain a final
 
-figure
+Verification Summary
 
-table
+that clearly reports
 
-metric
+PASS / FAIL
 
-artifact
+for every verification item.
 
-that should exist after finishing this phase.
+Example
 
----
+```
+✔ Model loaded
 
-## 16. Thesis Usage
+✔ Config loaded
 
-Explain
+✔ Prediction verified
 
-how the outputs of this phase
+✔ Intermediate tensors extracted
 
-will be used later in
+✔ Attention extraction verified
 
-Results
+✔ Spatial feature extraction verified
 
-Discussion
+✔ Artifact saving verified
 
-Analysis
-
-Case Study
-
-Defense Presentation
-
-Journal Paper.
+✔ Infrastructure ready
+```
 
 ---
 
-## 17. Phase Completion Checklist
+## 13.
 
-Create a practical checklist.
+Implement reproducibility.
 
-Everything should be objectively verifiable.
+Everything should be deterministic.
 
----
+Verify
 
-# IMPORTANT REQUIREMENT
+- random
+- numpy
+- torch
+- cuda
 
-The current proposal only briefly mentions
+Document
 
-limitations
+seed
 
-risks
+device
 
-implementation notes.
+library versions
 
-Expand them into complete engineering decisions.
-
-Every ambiguity must become one clear recommendation.
-
-Never leave
-
-"Need to decide..."
-
-or
-
-"May consider..."
-
-Instead,
-
-study the current architecture,
-
-the dataset,
-
-the implementation,
-
-the experiments,
-
-and recommend ONE primary solution,
-
-while also documenting alternatives and why they were rejected.
+inside the final report.
 
 ---
 
-# CONSISTENCY
+## 14.
 
-All eight proposal documents must remain perfectly consistent.
+The implementation should already consider future phases.
 
-Naming
+Do NOT write code that only works for Phase 1.
+
+Design utilities
 
 folder structure
 
-artifacts
+logging
 
-terminology
+artifact naming
 
-output formats
+helper functions
 
-must be identical across all phases.
+to be reusable by
 
-Do not contradict previous phases.
+Phase 2
 
----
+Phase 3
 
-# CONSTRAINTS
+...
 
-DO NOT
-
-- redesign the project
-- change the current architecture
-- change the current experiment pipeline
-- introduce another XAI roadmap
-- modify the approved phase order
-
-DO
-
-- preserve the current proposal
-- preserve terminology
-- preserve philosophy
-- preserve architecture
-
-Only increase implementation detail.
+Phase 8.
 
 ---
 
-# OUTPUT FORMAT
+## 15.
 
-Generate exactly
+Every saved artifact should follow a consistent naming convention.
+
+Examples
 
 ```
-Phase_1_Infrastructure_Proposal.md
+verification_report.json
 
-Phase_2_GradCAM_Proposal.md
+sample_prediction.json
 
-Phase_3_Attention_Proposal.md
+environment.json
 
-Phase_4_SHAP_Proposal.md
+runtime_log.txt
 
-Phase_5_LIME_Proposal.md
+phase1_summary.json
 
-Phase_6_CaseStudy_Proposal.md
-
-Phase_7_ReportGeneration_Proposal.md
-
-Phase_8_ThesisVisualization_Proposal.md
 ```
 
-Each document should be professionally formatted with:
-
-- clear hierarchy
-- tables
-- diagrams where useful
-- implementation flow
-- engineering notes
-- research notes
-- thesis notes
-- reproducibility notes
-
-The documents should be polished enough to serve as the official implementation specification for the XAI stage of this thesis.
+Avoid inconsistent filenames.
 
 ---
 
-# WORKING PRINCIPLES
+## 16.
 
-Before writing:
+If any part of the proposal is inconsistent with the actual codebase,
 
-1. Read the entire codebase.
+follow the codebase,
 
-2. Read all XAI-related documents.
+NOT the proposal.
 
-3. Understand the current multimodal architecture.
+Explain the reason inside comments.
 
-4. Understand the completed experiments.
+The implementation must always stay compatible with the current project.
 
-5. Understand the dataset.
+---
 
-6. Understand current folder organization.
+## 17.
 
-7. Understand current checkpoint structure.
+Do NOT modify existing training code unless absolutely necessary.
 
-8. Review the current XAI proposal carefully.
+Prefer
 
-Only after fully understanding the context should you generate the eight proposal documents.
+wrappers
 
-Finally, review every generated proposal again.
+utilities
 
-Check for:
+new helper modules
 
-- missing implementation details
-- inconsistencies
-- duplicated content
-- unclear engineering decisions
-- unresolved risks
-- non-reproducible procedures
-- terminology inconsistencies
+instead of changing existing experiment code.
 
-Revise repeatedly until all eight proposal documents are complete, consistent, technically sound, and ready to be handed directly to a coding AI for implementation without further clarification.
+Backward compatibility must be preserved.
+
+---
+
+# SELF REVIEW
+
+After finishing the implementation,
+
+perform a complete code review.
+
+Check
+
+- folder structure
+- imports
+- path handling
+- notebook execution order
+- code duplication
+- naming consistency
+- logging consistency
+- artifact saving
+- compatibility with current experiments
+- compatibility with future XAI phases
+- maintainability
+- reproducibility
+
+If any issue is found,
+
+fix it before finishing.
+
+Do NOT execute the notebook.
+
+Only review the implementation logic.
+
+Repeat the review until the implementation is technically sound, production-ready, and fully aligned with the current codebase.
+
+'''
+
+# IMPLEMENTATION NOTES
+
+After completing the implementation, generate one additional document:
+
+```text
+IMPLEMENTATION_NOTES.md
+```
+
+This document is intended for future maintenance, reproducibility, and Phase 2–8 development.
+
+It should briefly summarize the implementation decisions instead of repeating the proposal.
+
+Include the following sections.
+
+---
+
+## 1. Proposal Compliance
+
+Clearly list
+
+which parts were implemented exactly as specified in the proposal.
+
+Example
+
+```text
+✔ load_model() implemented exactly as proposal
+
+✔ save_figure() implemented exactly as proposal
+
+✔ verification notebook follows proposal workflow
+```
+
+---
+
+## 2. Proposal Deviations
+
+List every place where the proposal could NOT be followed exactly.
+
+For each deviation explain
+
+- proposal requirement
+- actual implementation
+- why the proposal does not match the current codebase
+- why the chosen implementation is better
+
+---
+
+## 3. Engineering Decisions
+
+Document every important implementation decision made during development.
+
+Examples
+
+- utility structure
+- wrapper organization
+- hook location
+- artifact naming
+- logging strategy
+- folder organization
+- notebook workflow
+- helper function design
+
+These decisions should help future developers understand the implementation philosophy.
+
+---
+
+## 4. Assumptions
+
+Clearly state every assumption used during implementation.
+
+Examples
+
+- expected checkpoint format
+- expected folder structure
+- expected experiment outputs
+- expected config format
+- expected dataset format
+
+The assumptions should be easy to verify later.
+
+---
+
+## 5. Compatibility with Existing Codebase
+
+Describe
+
+how the implementation integrates with
+
+- current experiments
+- current notebooks
+- current utilities
+- current folder organization
+
+Explain whether any backward compatibility considerations were required.
+
+---
+
+## 6. Reusable Components for Future Phases
+
+List every reusable component created in Phase 1.
+
+Examples
+
+```text
+load_model()
+
+load_single_sample()
+
+get_prediction()
+
+save_figure()
+
+save_raw_values()
+
+config.py
+
+utils.py
+
+verification notebook
+```
+
+Explain briefly how each component will be reused in
+
+Phase 2
+
+Phase 3
+
+...
+
+Phase 8.
+
+---
+
+## 7. Suggested Improvements
+
+If you found opportunities to improve the implementation
+
+without breaking compatibility,
+
+document them here instead of modifying the code automatically.
+
+These improvements can be considered in future refactoring.
+
+---
+
+## 8. Implementation Summary
+
+Write a concise one-page summary describing
+
+- what was implemented
+- what remains for later phases
+- whether Phase 1 is fully ready for Phase 2
+
+The goal is that another developer (or another AI Coding model) can read only this document and immediately understand the implementation status.
