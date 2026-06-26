@@ -51,3 +51,15 @@ from xai.utils import (
     enable_eager_attention,
     normalize_feature_map_to_bchw,
 )
+
+from xai.attention_explainer import (
+    extract_phobert_attention,
+    aggregate_attention,
+    cls_token_importance,
+    merge_subword_attention,
+    plot_attention_heatmap,
+    plot_cls_importance_bar,
+    compute_attention_sink_ratio,
+    AttentionExplainer,
+    inspect_tokenization,
+)
