@@ -355,6 +355,133 @@ def compute_gradcam_for_image(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Gradient Diagnostics — diagnose target similarity
+# ══════════════════════════════════════════════════════════════════════════════
+
+def diagnose_target_gradients(
+    model: nn.Module,
+    sample: Dict[str, Any],
+    target_layer: nn.Module,
+    device: torch.device,
+    image_idx: int = 0,
+) -> Dict[str, Any]:
+    """Diagnose why Grad-CAM heatmaps may look similar across targets.
+
+    Runs backward for each of the 5 targets and compares:
+    - gradient statistics (mean, std, abs_max)
+    - pairwise cosine similarity between target gradients
+    - raw CAM similarity before normalization
+
+    Args:
+        model: The full multimodal model.
+        sample: Sample dict from load_single_sample().
+        target_layer: The layer hooked for Grad-CAM.
+        device: Torch device.
+        image_idx: Which image to diagnose.
+
+    Returns:
+        Dictionary with diagnostic results.
+    """
+    import torch.nn.functional as F
+
+    grad_vectors = []
+    raw_cams = []
+    grad_stats = []
+
+    for t_idx in range(NUM_TARGETS):
+        gradients = {}
+
+        def bwd_hook(module, grad_input, grad_output):
+            gradients['value'] = grad_output[0].detach()
+
+        handle = target_layer.register_full_backward_hook(bwd_hook)
+        model.zero_grad()
+
+        try:
+            with torch.enable_grad():
+                pv = sample['pixel_values'].clone().detach().requires_grad_(True)
+                output = model(
+                    input_ids=sample['input_ids'],
+                    attention_mask=sample['attention_mask'],
+                    pixel_values=pv,
+                    num_images=sample.get('num_images'),
+                )
+                preds = output[0] if isinstance(output, tuple) else output
+                preds[0, t_idx].backward(retain_graph=False)
+
+            if 'value' in gradients:
+                g = gradients['value']
+                # normalize to BCHW
+                g_bchw, _ = normalize_feature_map_to_bchw(g, IMAGE_FEATURE_DIM)
+                g_img = g_bchw[image_idx]  # [C, H, W]
+
+                flat = g_img.flatten().cpu()
+                grad_vectors.append(flat)
+
+                grad_stats.append({
+                    'target': FACTOR_NAMES[t_idx],
+                    'grad_mean': float(flat.mean()),
+                    'grad_std': float(flat.std()),
+                    'grad_abs_mean': float(flat.abs().mean()),
+                    'grad_abs_max': float(flat.abs().max()),
+                    'nonzero_ratio': float((flat.abs() > 1e-10).float().mean()),
+                    'predicted_score': float(preds[0, t_idx].detach().cpu()),
+                })
+
+                # also compute raw CAM (before normalization)
+                # reuse activations from a quick forward
+                cam = compute_gradcam_for_image(
+                    model, sample, t_idx, image_idx, target_layer, device
+                )
+                raw_cams.append(cam)
+        finally:
+            handle.remove()
+            model.zero_grad()
+            gradients.clear()
+
+    # Compute pairwise cosine similarity of gradients
+    n = len(grad_vectors)
+    grad_sim = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            cos = F.cosine_similarity(
+                grad_vectors[i].unsqueeze(0),
+                grad_vectors[j].unsqueeze(0),
+            ).item()
+            grad_sim[i, j] = cos
+
+    # Compute pairwise correlation of raw CAMs
+    cam_corr = np.zeros((n, n))
+    flat_cams = [c.flatten() for c in raw_cams]
+    for i in range(n):
+        for j in range(n):
+            if np.std(flat_cams[i]) > 1e-10 and np.std(flat_cams[j]) > 1e-10:
+                cam_corr[i, j] = np.corrcoef(flat_cams[i], flat_cams[j])[0, 1]
+            else:
+                cam_corr[i, j] = 1.0 if i == j else 0.0
+
+    # Raw CAM statistics
+    cam_stats = []
+    for t_idx, cam in enumerate(raw_cams):
+        cam_stats.append({
+            'target': FACTOR_NAMES[t_idx],
+            'cam_min': float(cam.min()),
+            'cam_max': float(cam.max()),
+            'cam_mean': float(cam.mean()),
+            'cam_std': float(cam.std()),
+        })
+
+    return {
+        'grad_stats': grad_stats,
+        'grad_similarity_matrix': grad_sim,
+        'cam_correlation_matrix': cam_corr,
+        'cam_stats': cam_stats,
+        'raw_cams': raw_cams,
+        'factor_names': FACTOR_NAMES,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Overlay CAM on Image
 # ══════════════════════════════════════════════════════════════════════════════
 

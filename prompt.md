@@ -1,265 +1,131 @@
 # ROLE
 
-You are a Principal AI Engineer, Senior PyTorch Engineer, Computer Vision XAI Engineer, and Research Software Architect.
+You are a Principal XAI Engineer, Senior PyTorch Debugging Engineer, and Research Software Architect.
 
 You specialize in:
 
-- Explainable AI
 - Grad-CAM
 - PyTorch hooks
-- timm Vision Transformers
-- Swin Transformer
+- timm Swin Transformer
 - Multimodal Deep Learning
-- Google Colab workflows
-- Reproducible ML systems
+- Regression XAI
+- Debugging attribution methods
 - Research-grade notebook engineering
-- Thesis-quality visualizations
-
-Your task is to implement Phase 2: Grad-CAM for Image Branch in a professional, reusable, production-ready, research-grade way.
 
 ---
 
 # GOAL
 
-Read the entire codebase and all necessary files.
+Read the entire codebase and all Phase 2 implementation files.
 
-Then implement Phase 2 according to:
+Diagnose why the Grad-CAM heatmaps for all 5 targets:
 
 ```text
-Phase_2_GradCAM_Proposal.md
+food_score
+price_score
+atmosphere_score
+service_score
+overall_satisfaction
 ```
 
-You must build Phase 2 on top of the completed Phase 1 infrastructure.
+look almost identical.
 
-Do NOT reimplement Phase 1 logic.
+Then fix the implementation if there is a bug or design issue.
 
-Reuse Phase 1 utilities wherever possible.
+If the root cause cannot be diagnosed purely from code inspection, add diagnostic logging and sanity-check cells to the notebook so the cause can be identified when the notebook runs.
 
-After implementing Phase 2, review everything you implemented and fix any remaining issues before finishing.
+After fixing, update the Phase 2 notebook so it runs Grad-CAM for **15 samples** instead of only 3 samples.
 
 ---
 
 # FILES TO READ FIRST
 
-Before writing or modifying any code, read and understand:
+Read the entire codebase.
 
-## Codebase
-
-Read the entire codebase, especially:
+Especially read:
 
 ```text
-Models/
-src/
+Models/ImageModel.py
+Models/TextModel.py
+Models/CrossAttentionFusion.py
+Models/FusionModel.py
+Models/GMUFusion.py
+Models/GatedCrossModalFusion.py
+Models/FiLMFusion.py
+src/dataset.py
 main.py
 test.py
-Trainer.py
-Config.py
-notebook/
-experiments/
-```
-
-Understand:
-
-- model architecture
-- ImageModel forward pass
-- multi-image handling
-- Swin-B feature extraction
-- checkpoint loading
-- dataset preprocessing
-- experiment artifact storage
-- current notebook workflow
-- Google Drive output workflow
-
----
-
-## Phase 1 files
-
-Read carefully:
-
-```text
-@__init__.py
-@config.py
-@utils.py
-@Phase1_Infrastructure_Verification.ipynb
-@Phase_1_IMPLEMENTATION_NOTES.md
-@Phase_1_Infrastructure_Proposal.md
-```
-
-You must understand what Phase 1 already implemented and verified.
-
-Pay special attention to:
-
-- `load_model()`
-- `load_single_sample()`
-- `get_prediction()`
-- `save_figure()`
-- `save_raw_values()`
-- `get_metadata()`
-- `enable_eager_attention()`
-- `normalize_feature_map_to_bchw()`
-- target names and target indices
-- artifact naming conventions
-- Google Drive output paths
-- feature map shape verification
-- Swin-B output format handling
-
----
-
-## Phase 2 proposal
-
-Read carefully:
-
-```text
-Phase_2_GradCAM_Proposal.md
-```
-
-This is the implementation specification for Phase 2.
-
-Follow it closely.
-
-If the proposal conflicts with the actual codebase or Phase 1 implementation, follow the codebase and Phase 1 implementation, then document the deviation in:
-
-```text
-Phase_2_IMPLEMENTATION_NOTES.md
-```
-
----
-
-# IMPORTANT CONTEXT
-
-The current best model is the multimodal configuration:
-
-```text
-Image Backbone: Swin-B
-Text Backbone: PhoBERT
-Fusion: Cross-Attention
-Loss: Log-Cosh
-Target outputs: 5 regression scores
-```
-
-Targets:
-
-```text
-food_score
-price_score
-atmosphere_score
-service_score
-overall_satisfaction
-```
-
-Grad-CAM must be run one target at a time.
-
-For example:
-
-```text
-target_idx = 0 -> food_score
-target_idx = 1 -> price_score
-target_idx = 2 -> atmosphere_score
-target_idx = 3 -> service_score
-target_idx = 4 -> overall_satisfaction
-```
-
----
-
-# IMPLEMENTATION REQUIREMENTS
-
-## 1. Reuse Phase 1 infrastructure
-
-Do not duplicate code that already exists in Phase 1.
-
-Use:
-
-```python
-from xai.config import ...
-from xai.utils import ...
-```
-
-where appropriate.
-
-Do not re-create:
-
-- target mappings
-- model loading
-- sample loading
-- prediction formatting
-- figure saving
-- raw value saving
-- feature map normalization
-- metadata creation
-
-unless the Phase 1 implementation is missing something required for Phase 2.
-
----
-
-## 2. Create Phase 2 Grad-CAM module
-
-Create:
-
-```text
+xai/config.py
+xai/utils.py
 xai/gradcam_explainer.py
+xai/notebooks/Phase2_GradCAM.ipynb
+Phase_2_GradCAM_Proposal.md
+Phase_2_IMPLEMENTATION_NOTES.md
+Phase_2_FIX_REPORT.md
+Phase_1_IMPLEMENTATION_NOTES.md
 ```
 
-This file should contain reusable code for Grad-CAM.
+Understand exactly:
 
-It should not be notebook-only logic.
-
-At minimum, implement:
-
-```text
-GradCAMExplainer
-MultiTargetScoreWrapper
-SwinTransformerReshapeTransform
-RegressionScoreTarget, if needed
-manual per-image Grad-CAM helpers
-heatmap overlay helpers
-comparison figure helpers
-metadata saving helpers
-```
-
-Use type hints and docstrings.
+- how ImageModel processes multi-image inputs
+- where Swin-B pooling happens
+- what tensor shape the target layer returns
+- whether hooks are attached before or after spatial pooling
+- how gradients flow from each target score back to the image encoder
+- whether each target actually produces different gradients
+- whether CAM normalization hides differences
+- whether CAMs are accidentally reused across targets
 
 ---
 
-## 3. Multi-image handling
+# CURRENT OBSERVATION
 
-The model supports up to 4 images per review.
+Grad-CAM runs successfully.
 
-Do NOT explain only the first image.
-
-Do NOT explain padded black images.
-
-Implement Grad-CAM for all real images:
+However, for several samples, the heatmaps for:
 
 ```text
-for image_idx in range(num_real_images):
-    generate Grad-CAM for that image
+Food
+Price
+Atmosphere
+Service
+Overall Satisfaction
 ```
 
-Use the multi-image strategy approved by the proposal:
+look almost identical.
 
-```text
-Process all images through the full multimodal model to preserve context,
-but isolate activations and gradients for each real image via hooks.
-```
+This may mean one of the following:
 
-This ensures the explanation reflects the real inference computation.
+1. Implementation bug.
+2. Wrong target layer.
+3. Target-specific backward is not actually target-specific.
+4. CAMs are being reused accidentally.
+5. Gradients from all 5 outputs to the image branch are almost identical.
+6. Final Swin-B layer is too coarse or too close to global pooling.
+7. Min-max normalization makes weak target CAMs look artificially strong.
+8. The selected sample genuinely uses the same visual evidence for all targets.
+
+Your task is to determine which explanation is most likely.
 
 ---
 
-## 4. Target-specific Grad-CAM
+# DIAGNOSTIC PRIORITY
 
-Every Grad-CAM run must be target-specific.
+First, try to diagnose by reading the code.
 
-Do NOT backpropagate from all 5 outputs at once.
+Only if static code inspection cannot prove the cause, add diagnostic logging/cells to the notebook.
 
-Use exactly one target per run:
+Do not blindly add logs before understanding the code.
 
-```python
-score = output[:, target_idx]
-score.backward()
-```
+---
 
-Generate heatmaps separately for:
+# REQUIRED DIAGNOSTIC CHECKS
+
+Add the following diagnostic checks to the Phase 2 notebook and/or `gradcam_explainer.py` as needed.
+
+## 1. Target score check
+
+For each sample, print the model predictions:
 
 ```text
 food_score
@@ -269,284 +135,303 @@ service_score
 overall_satisfaction
 ```
 
----
-
-## 5. Keep text fixed
-
-When explaining image branch using Grad-CAM:
-
-- text input must remain fixed
-- attention mask must remain fixed
-- only image evidence is analyzed
-
-This avoids multimodal confounding.
-
-Document this behavior in code comments and metadata.
+Verify that the 5 predicted scores are not all identical.
 
 ---
 
-## 6. Swin-B feature map format
+## 2. Target-specific backward check
 
-Phase 1 already found/handled that Swin-B may output feature maps as:
-
-```text
-[B, H, W, C]
-```
-
-or
-
-```text
-[B, N, C]
-```
-
-or
-
-```text
-[B, C, H, W]
-```
-
-Reuse Phase 1's:
+For each target index:
 
 ```python
-normalize_feature_map_to_bchw()
+target_score = preds[0, target_idx]
+target_score.backward()
 ```
 
-Do not assume a fixed shape.
+Print:
 
-Grad-CAM logic must support the actual feature format verified in Phase 1.
+```text
+target_idx
+target_name
+target_score
+```
+
+Verify the correct target is selected each time.
 
 ---
 
-## 7. Target layer detection
+## 3. Gradient statistics per target
 
-Implement robust target layer selection.
+For each target, compute gradient stats at the hooked image layer:
 
-Preferred target layer:
-
-```python
-model.image_model.encoder.norm
+```text
+grad_mean
+grad_std
+grad_abs_mean
+grad_abs_max
+nonzero_ratio
 ```
 
-But if this does not exist or does not return a valid spatial feature map, fallback to suitable Swin-B layers detected from the codebase.
-
-The selected layer and feature map metadata must be saved into output metadata.
+If all gradient stats are identical across 5 targets, investigate why.
 
 ---
 
-## 8. Artifact output location
+## 4. Gradient similarity matrix
 
-Follow the existing project and Drive workflow.
+For one sample and one image, compute cosine similarity between flattened gradients of all 5 targets.
 
-Generated Phase 2 artifacts should be saved under the experiment folder on Drive, for example:
-
-```text
-/content/drive/MyDrive/SE365/experiments/EXP_060A_bestsequential_full_configuration/xai/gradcam/
-```
-
-Use the current project’s path conventions.
-
-Do not invent a conflicting folder structure.
-
-At minimum create:
+Save/print a 5×5 matrix:
 
 ```text
-gradcam/
-raw/
-metadata/
-figures/
+Gradient Similarity Matrix
 ```
 
-or the structure already defined in Phase 2 proposal.
+Interpretation:
+
+- similarity ≈ 1.0 for all pairs means image-branch gradients are nearly identical across targets
+- similarity clearly below 1.0 means targets are different, but visualization may hide differences
 
 ---
 
-## 9. Required output artifacts
+## 5. Raw CAM similarity matrix
 
-For each processed sample, save:
+Compute pairwise correlation between raw CAM arrays for all 5 targets.
+
+Save/print a 5×5 matrix:
 
 ```text
-Per-image Grad-CAM overlay PNG
-Per-target Grad-CAM overlay PNG
-Raw CAM .npy
-5-target comparison figure
-Multi-image grid figure, if sample has multiple images
-Metadata JSON
+Raw CAM Correlation Matrix
 ```
 
-Also save:
+Do this before overlay and before any visual formatting.
+
+---
+
+## 6. Raw CAM value range
+
+For each target, print:
 
 ```text
-gradcam_batch_summary.json
+cam_min
+cam_max
+cam_mean
+cam_std
 ```
 
-All saved paths must be printed in the notebook immediately after saving.
+This checks whether min-max normalization makes weak/flat CAMs look artificially strong.
 
-Example:
+---
+
+## 7. Target layer comparison
+
+Try multiple candidate target layers:
 
 ```text
-Saved:
-/content/drive/MyDrive/SE365/experiments/.../xai/gradcam/sample_0042_target0_food_score_img0.png
+image_model.encoder.norm
+image_model.encoder.layers[-1]
+image_model.encoder.layers[-1].blocks[-1]
+image_model.encoder.layers[-1].blocks[-1].norm2
+```
+
+Use only those that exist in the actual code.
+
+For each candidate layer, generate CAMs and compute target similarity.
+
+Select the best layer based on:
+
+- valid spatial feature map
+- nonzero gradients
+- target-specific differences
+- semantic plausibility
+- stability
+
+Do not assume `encoder.norm` is always best.
+
+---
+
+## 8. CAM reuse bug check
+
+Verify that the loop creates a new CAM for every:
+
+```text
+image_idx
+target_idx
+```
+
+Check that:
+
+- CAM arrays are not the same object
+- CAM arrays are not overwritten
+- saved filenames are unique
+- dictionary keys include both image_idx and target_idx
+
+---
+
+## 9. Multi-image indexing check
+
+Verify that when the model flattens images as `[B*N, C, H, W]`, the code slices the correct image index.
+
+For current batch size B=1, image index mapping is:
+
+```text
+flat_index = image_idx
+```
+
+But implement it explicitly and document it.
+
+If later batch size > 1, use:
+
+```text
+flat_index = batch_idx * max_images + image_idx
 ```
 
 ---
 
-## 10. Notebook implementation
+# FIX REQUIREMENTS
 
-Create:
+After diagnosis, fix the root issue.
+
+Potential fixes may include:
+
+## If target layer is too late/coarse
+
+Update target layer selection to prefer the layer that gives the best target-specific Grad-CAM.
+
+Document why the new layer is better.
+
+---
+
+## If gradients are actually identical
+
+Do not fake target specificity.
+
+Instead:
+
+- keep the implementation correct
+- add diagnostics showing gradient similarity
+- explain in notes that the image branch provides similar visual evidence for these targets
+- recommend using SHAP or text attribution for target-level differences
+
+---
+
+## If normalization hides differences
+
+Save both:
+
+```text
+normalized CAM
+raw CAM
+```
+
+Also add optional fixed-scale visualization or side-by-side raw statistic reporting.
+
+---
+
+## If CAMs are accidentally reused
+
+Fix the loop/storage/saving logic.
+
+---
+
+## If wrong target is selected
+
+Fix target indexing immediately.
+
+---
+
+# NOTEBOOK UPDATE REQUIREMENT
+
+Update:
 
 ```text
 xai/notebooks/Phase2_GradCAM.ipynb
 ```
 
-The notebook must follow the same professional style as Phase 1 notebook.
+so that it runs Grad-CAM for **15 samples** instead of 3.
 
-It must include:
+The notebook should define:
 
-1. Title and explanation
-2. Environment setup
-3. Path configuration
-4. Imports
-5. Seed and device setup
-6. Load model
-7. Load sample
-8. Show sample text and images
-9. Verify Grad-CAM target layer
-10. Generate Grad-CAM for one target
-11. Generate Grad-CAM for all 5 targets
-12. Generate Grad-CAM for multi-image sample
-13. Save all artifacts
-14. Run target-specific sanity check
-15. Run reproducibility sanity check
-16. Save batch summary
-17. Final PASS/FAIL summary
+```python
+NUM_GRADCAM_SAMPLES = 15
+```
 
-Every section must print progress logs.
+and use this value consistently.
+
+Do not hardcode 15 in multiple places.
 
 ---
 
-## 11. Logging requirements
+# SAMPLE SELECTION REQUIREMENT
 
-Every major notebook cell must print:
+Do not simply use the first 15 rows blindly if there is a better existing sample selection method.
+
+Implement a reasonable selection strategy:
+
+1. Include several high-confidence correct samples.
+2. Include several high-error samples.
+3. Include several multi-image samples.
+4. Include several samples with different dominant visual content if possible.
+
+If the notebook cannot implement this robustly yet, fall back to the first 15 test samples but clearly document this limitation.
+
+---
+
+# OUTPUT REQUIREMENTS
+
+After the fix, the notebook should save:
 
 ```text
-============================================================
-Phase 2 — Step X/Y — Step Name
-============================================================
+gradcam outputs for 15 samples
+diagnostic summary json
+gradient similarity matrices
+raw CAM similarity matrices
+target layer comparison results
+updated batch summary json
 ```
 
-Whenever a file is saved, print:
+All outputs should be saved under the existing Phase 2 output folder, for example:
+
+```text
+/content/drive/MyDrive/SE365/experiments/EXP_060A_bestsequential_full_configuration/xai/gradcam/
+```
+
+Every saved file must print:
 
 ```text
 Saved:
 <absolute path>
 ```
 
-Every error should be readable and actionable.
-
-Do not allow silent failures.
-
 ---
 
-## 12. Validation requirements
+# IMPLEMENTATION NOTES
 
-Implement validation checks:
-
-### Technical validation
-
-- model loads correctly
-- sample loads correctly
-- Grad-CAM target layer found
-- feature map normalized to `[B, C, H, W]`
-- raw CAM shape is valid
-- CAM values are finite
-- CAM values are normalized to `[0, 1]`
-- no CAM generated for padding images
-- file count matches expectation
-
-### Target-specific validation
-
-For one sample, compute pairwise correlation between 5 target heatmaps.
-
-If all heatmaps are nearly identical, print warning.
-
-### Reproducibility validation
-
-Run the same Grad-CAM twice on the same sample and target.
-
-Compare raw CAM arrays using `np.allclose`.
-
-Save result in metadata.
-
----
-
-## 13. Error handling
-
-Handle these cases gracefully:
-
-- `pytorch-grad-cam` not installed
-- checkpoint missing
-- config missing
-- no test CSV found
-- image file missing
-- sample has only black placeholder image
-- target layer not found
-- gradient is zero
-- CAM contains NaN or Inf
-- GPU out of memory
-
-When recoverable, print warning and continue.
-
-When unrecoverable, raise a clear error message.
-
----
-
-## 14. Do not break existing code
-
-Do NOT modify existing training, evaluation, or experiment notebooks unless absolutely necessary.
-
-If you need to modify Phase 1 utilities, keep changes backward-compatible.
-
-Do not break Phase 1 notebook.
-
----
-
-## 15. Install dependency if needed
-
-If `pytorch-grad-cam` is missing, the Phase 2 notebook should include a Colab-safe install cell:
-
-```python
-!pip install grad-cam
-```
-
-But do not force reinstall if already installed.
-
----
-
-## 16. Implementation notes
-
-After finishing implementation, create:
+After finishing, update or create:
 
 ```text
 Phase_2_IMPLEMENTATION_NOTES.md
 ```
 
-This file must contain:
+Add a new section:
 
-1. What was implemented exactly as specified
-2. What deviated from the proposal
-3. Why deviations were necessary
-4. Engineering decisions
-5. Assumptions
-6. How Phase 2 reuses Phase 1
-7. What artifacts are generated
-8. Known limitations
-9. How Phase 3 can reuse Phase 2 results
+```text
+## Grad-CAM Target Similarity Diagnosis
+```
+
+Explain:
+
+- whether the issue was a bug or an expected behavior
+- what evidence supports the conclusion
+- which diagnostics were added
+- which target layer was selected
+- whether target-specificity improved
+- remaining limitations
 
 ---
 
-## 17. Fix report
+# FIX REPORT
 
-If you had to fix any existing issue in Phase 1 utilities or notebook, create/update:
+Create or update:
 
 ```text
 Phase_2_FIX_REPORT.md
@@ -554,11 +439,13 @@ Phase_2_FIX_REPORT.md
 
 Include:
 
-- root cause
-- files modified
-- fix applied
-- compatibility impact
-- future phase impact
+1. Problem observed
+2. Root cause analysis
+3. Files modified
+4. Diagnostic checks added
+5. Fixes applied
+6. Remaining risks
+7. How to verify the fix by running the notebook
 
 ---
 
@@ -566,61 +453,46 @@ Include:
 
 The implementation must be:
 
-```text
-research-grade
-industry-grade
-reproducible
-maintainable
-notebook-friendly
-Colab-friendly
-clear enough for thesis defense
-```
+- professional
+- reproducible
+- Colab-friendly
+- notebook-friendly
+- research-grade
+- thesis-ready
 
-Code must include:
+Do not break Phase 1.
 
-- type hints
-- docstrings
-- readable function names
-- no unnecessary global state
-- no duplicate Phase 1 logic
-- consistent artifact names
-- consistent metadata
-- robust path handling
-- explicit logs
-- clear failure messages
+Do not break existing experiment code.
+
+Do not modify model weights.
+
+Do not retrain anything.
+
+Do not use test results to select a new model.
+
+Only debug and improve the Grad-CAM implementation.
 
 ---
 
-# SELF REVIEW AFTER IMPLEMENTATION
+# FINAL SELF-REVIEW
 
-After implementing Phase 2, perform a complete static review.
+After making changes, perform a complete static review.
 
-Do NOT just stop after writing files.
+Check:
 
-Review:
-
-- all imports
-- all paths
+- imports
+- paths
 - notebook cell order
-- shape assumptions
-- target index handling
-- multi-image handling
-- hook registration and removal
-- gradient clearing
-- file saving
+- target indexing
+- target layer selection
+- hook cleanup
+- gradient zeroing
+- CAM storage keys
+- CAM file names
 - metadata completeness
-- compatibility with Phase 1
-- compatibility with future Phase 3
-- whether the notebook can be run from top to bottom in Colab
+- diagnostics saving
+- 15-sample execution logic
+- compatibility with Phase 1 utilities
+- compatibility with future XAI phases
 
-Fix any issue you find.
-
-Repeat review until no obvious problems remain.
-
-Do not run training.
-
-Do not change the trained model.
-
-Do not regenerate experiments.
-
-Only implement Phase 2 XAI Grad-CAM infrastructure and notebook.
+Fix any issue found before finishing.

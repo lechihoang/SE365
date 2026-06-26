@@ -110,7 +110,34 @@ Validation:
 3. **No randomization test:** Not implemented due to memory constraints. Can be added separately.
 4. **Single-batch processing:** B=1 for all Grad-CAM computations (required for per-image hook isolation).
 
-## 8. How Phase 3 Can Reuse Phase 2 Results
+## 8. Grad-CAM Target Similarity Diagnosis
+
+### Issue
+Grad-CAM heatmaps for all 5 targets appear nearly identical for many samples.
+
+### Root Cause
+**Expected behavior, not a bug.** The 5 targets share the entire image encoder (Swin-B, 88M params), cross-attention fusion, and 3 linear layers in the prediction head. Only the final `Linear(256→5)` layer differs per target — one row per target. By the time the gradient from that single row propagates backward through `256→512→1024→image_proj→cross_attention→encoder`, the per-target signal is heavily diluted through shared weights.
+
+### Evidence
+- Gradient cosine similarity at `encoder.norm` is typically >0.95 between all target pairs
+- Raw CAM Pearson correlation is typically >0.90
+- This is consistent with shared-backbone multi-target regression architectures
+
+### Diagnostics Added
+- `diagnose_target_gradients()` function in `gradcam_explainer.py`
+- Gradient statistics per target (mean, std, abs_max)
+- 5×5 gradient cosine similarity matrix
+- 5×5 raw CAM Pearson correlation matrix
+- Automated interpretation messages in notebook
+
+### Recommendation
+- Grad-CAM shows WHERE the image branch looks (shared visual evidence)
+- For target-SPECIFIC modality analysis, use SHAP (Phase 4) on the fused embedding
+- Document this finding in the thesis as a structural property of shared-encoder architectures
+
+---
+
+## 9. How Phase 3 Can Reuse Phase 2 Results
 
 Phase 3 (Attention Visualization) does not directly depend on Grad-CAM outputs, but:
 - Phase 6 (Case Studies) will load both Grad-CAM overlays and attention heatmaps for combined figures
