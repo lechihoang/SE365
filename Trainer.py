@@ -1,7 +1,11 @@
 import os
+import csv
 import json
+import math
 import logging
 import datetime
+import shutil
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -26,8 +30,6 @@ class HomoscedasticUncertaintyLoss(nn.Module):
         return loss.mean()
 
 
-import math
-
 class LogCoshLoss(nn.Module):
     def forward(self, pred, target):
         diff = pred - target
@@ -51,7 +53,6 @@ class Trainer:
         self.args = args
 
         # ---- loss ----
-        self.mse_criterion = nn.MSELoss()
         self.mae_criterion = nn.L1Loss()
         loss_fn_str = getattr(args, 'loss_fn', 'mse')
         if loss_fn_str == 'huber':
@@ -85,7 +86,7 @@ class Trainer:
 
         # ---- AMP ----
         self.use_amp = getattr(args, 'use_amp', False)
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+        self.scaler = torch.amp.GradScaler('cuda', enabled=self.use_amp)
 
         # ---- state defaults ----
         self.start_epoch = 0
@@ -124,7 +125,7 @@ class Trainer:
         loop = tqdm(self.train_loader, desc=f"Epoch {epoch+1}/{self.args.epochs}")
         for step, batch in enumerate(loop):
             inputs = self._prepare_inputs(batch)
-            with torch.cuda.amp.autocast(enabled=self.use_amp):
+            with torch.amp.autocast('cuda', enabled=self.use_amp):
                 output = self.model(**inputs)
                 pred_factors = output[0] if isinstance(output, tuple) else output
                 true_factors = batch['factor_scores'].to(self.device)
@@ -154,7 +155,7 @@ class Trainer:
         with torch.no_grad():
             for batch in self.val_loader:
                 inputs = self._prepare_inputs(batch)
-                with torch.cuda.amp.autocast(enabled=self.use_amp):
+                with torch.amp.autocast('cuda', enabled=self.use_amp):
                     output = self.model(**inputs)
                     pred_factors = output[0] if isinstance(output, tuple) else output
                     true_factors = batch['factor_scores'].to(self.device)
@@ -279,12 +280,11 @@ class Trainer:
                     },
                     checkpoint_path,
                 )
-                
+
                 # Backward compat: also save to args.save_path
-                import shutil
                 compat_path = os.path.join(args.save_path, f'best_model_{args.mode}.pth')
                 shutil.copy(checkpoint_path, compat_path)
-                
+
                 log(f"*** Saved best model to {checkpoint_path} (mean_mae={mean_mae:.4f}) ***")
             else:
                 patience_counter += 1
@@ -310,7 +310,6 @@ class Trainer:
         log(f"Metrics saved to {metrics_path}")
 
         # ---- save predictions.csv ----
-        import csv
         pred_path = os.path.join(exp_dir, 'predictions.csv')
         header = ['index', 'split']
         for n in factor_names:

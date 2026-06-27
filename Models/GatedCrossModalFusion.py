@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
 
+from Models.unfreeze import freeze_all, unfreeze_text_backbone, unfreeze_image_backbone
+
+
 class GatedCrossModalFusion(nn.Module):
     """
     Gated Cross-Modal Fusion.
@@ -12,20 +15,9 @@ class GatedCrossModalFusion(nn.Module):
         self.text_model = text_model
         self.image_model = image_model
 
-        for param in list(self.text_model.parameters()) + list(self.image_model.parameters()):
-            param.requires_grad = False
-
-        if unfreeze_text_layers > 0:
-            if hasattr(self.text_model.encoder, 'encoder') and hasattr(self.text_model.encoder.encoder, 'layer'):
-                for layer in self.text_model.encoder.encoder.layer[-unfreeze_text_layers:]:
-                    for param in layer.parameters():
-                        param.requires_grad = True
-
-        if unfreeze_image_layers > 0:
-            if hasattr(self.image_model.encoder, 'stages'):
-                for block in self.image_model.encoder.stages[-1].blocks[-unfreeze_image_layers:]:
-                    for param in block.parameters():
-                        param.requires_grad = True
+        freeze_all(text_model, image_model)
+        unfreeze_text_backbone(text_model, unfreeze_text_layers)
+        unfreeze_image_backbone(image_model, unfreeze_image_layers)
 
         text_dim  = self.text_model.encoder.config.hidden_size
         image_dim = self.image_model.encoder.num_features

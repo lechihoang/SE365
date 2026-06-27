@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
 
+from Models.unfreeze import freeze_all, unfreeze_text_backbone, unfreeze_image_backbone
+
+
 class FiLMFusion(nn.Module):
     """
     Feature-wise Linear Modulation (FiLM).
@@ -13,26 +16,23 @@ class FiLMFusion(nn.Module):
         self.text_model = text_model
         self.image_model = image_model
 
-        for param in list(self.text_model.parameters()) + list(self.image_model.parameters()):
-            param.requires_grad = False
-
-        if unfreeze_text_layers > 0:
-            if hasattr(self.text_model.encoder, 'encoder') and hasattr(self.text_model.encoder.encoder, 'layer'):
-                for layer in self.text_model.encoder.encoder.layer[-unfreeze_text_layers:]:
-                    for param in layer.parameters():
-                        param.requires_grad = True
-
-        if unfreeze_image_layers > 0:
-            if hasattr(self.image_model.encoder, 'stages'):
-                for block in self.image_model.encoder.stages[-1].blocks[-unfreeze_image_layers:]:
-                    for param in block.parameters():
-                        param.requires_grad = True
+        freeze_all(text_model, image_model)
+        unfreeze_text_backbone(text_model, unfreeze_text_layers)
+        unfreeze_image_backbone(image_model, unfreeze_image_layers)
 
         text_dim  = self.text_model.encoder.config.hidden_size
         image_dim = self.image_model.encoder.num_features
 
         self.film_gamma = nn.Linear(text_dim, image_dim)
         self.film_beta  = nn.Linear(text_dim, image_dim)
+        # Standard FiLM init: gamma=1, beta=0 so that at initialization
+        # modulated_image = 1 * image + 0 = image (identity modulation).
+        # The default Linear init drives gamma ~ N(0, sqrt(1/text_dim)) which
+        # near-zeroes the image branch at start and biases the comparison.
+        nn.init.ones_(self.film_gamma.weight)
+        nn.init.zeros_(self.film_gamma.bias)
+        nn.init.zeros_(self.film_beta.weight)
+        nn.init.zeros_(self.film_beta.bias)
 
         self.head = nn.Sequential(
             nn.Linear(text_dim + image_dim, 512),

@@ -1,19 +1,23 @@
+import os
+import random
+
+import numpy as np
 import torch
+import timm
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoImageProcessor
+
 from Config import get_args
 from src.dataset import MultimodalDataset
 from Models.TextModel import TextModel
 from Models.ImageModel import ImageModel
 from Models.FusionModel import FusionModel
 from Trainer import Trainer
-import os
 
 
 class TimmProcessor:
     """Wrapper to make timm transforms behave like HuggingFace AutoImageProcessor."""
     def __init__(self, model_name):
-        import timm
         data_config = timm.data.resolve_model_data_config(model_name)
         self.transform = timm.data.create_transform(**data_config, is_training=False)
 
@@ -21,9 +25,8 @@ class TimmProcessor:
         pixel_values = torch.stack([self.transform(img.convert('RGB')) for img in images])
         return {'pixel_values': pixel_values}
 
+
 def set_seed(seed: int):
-    import random
-    import numpy as np
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -35,8 +38,6 @@ def set_seed(seed: int):
 
 
 def seed_worker(worker_id):
-    import random
-    import numpy as np
     worker_seed = torch.initial_seed() % 2**32
     np.random.seed(worker_seed)
     random.seed(worker_seed)

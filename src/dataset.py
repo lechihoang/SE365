@@ -1,11 +1,14 @@
 import os
+import ast
+import hashlib
+from io import BytesIO
+
+import requests
 import torch
 import pandas as pd
-from torch.utils.data import Dataset
-import requests
 from PIL import Image
-from io import BytesIO
-import ast
+from torch.utils.data import Dataset
+
 
 class MultimodalDataset(Dataset):
     """
@@ -26,50 +29,49 @@ class MultimodalDataset(Dataset):
         return len(self.df)
 
     def _load_image(self, url):
-        import hashlib
         url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()
         local_path = os.path.join(self.image_dir, f"{url_hash}.jpg")
         if os.path.exists(local_path):
             return Image.open(local_path).convert("RGB")
-            
+
         try:
             response = requests.get(url, timeout=5)
             img = Image.open(BytesIO(response.content)).convert("RGB")
             return img
-        except Exception as e:
+        except Exception:
             return Image.new('RGB', (224, 224), color='black')
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        
+
         # Text
         text = str(row['comment_clean'])
         text_inputs = self.tokenizer(
-            text, 
-            truncation=True, 
-            padding='max_length', 
-            max_length=self.max_length, 
+            text,
+            truncation=True,
+            padding='max_length',
+            max_length=self.max_length,
             return_tensors="pt"
         )
-        
+
         # Image (Strong Baseline: lấy tối đa max_images, đệm ảnh đen nếu thiếu)
         try:
             image_urls = ast.literal_eval(row['image_url'])
-        except:
+        except Exception:
             image_urls = [row['image_url']]
-            
+
         num_images = min(len(image_urls), self.max_images)
         images = []
-        
+
         for i in range(self.max_images):
             if i < len(image_urls):
                 img = self._load_image(image_urls[i])
             else:
                 img = Image.new('RGB', (224, 224), color='black')
             images.append(img)
-            
-        image_inputs = self.image_processor(images, return_tensors="pt")['pixel_values'] # [max_images, 3, 224, 224]
-        
+
+        image_inputs = self.image_processor(images, return_tensors="pt")['pixel_values']  # [max_images, 3, 224, 224]
+
         # Labels
         factor_scores = torch.tensor([
             row['food_score'],
@@ -78,14 +80,15 @@ class MultimodalDataset(Dataset):
             row['service_score'],
             row['overall_satisfaction']
         ], dtype=torch.float)
-        
+
         return {
             'input_ids': text_inputs['input_ids'].squeeze(0),
             'attention_mask': text_inputs['attention_mask'].squeeze(0),
-            'pixel_values': image_inputs, # [max_images, 3, 224, 224]
+            'pixel_values': image_inputs,  # [max_images, 3, 224, 224]
             'num_images': torch.tensor(num_images, dtype=torch.long),
             'factor_scores': factor_scores
         }
+
 
 class AdvancedMultimodalDataset(Dataset):
     """
@@ -103,7 +106,6 @@ class AdvancedMultimodalDataset(Dataset):
         return len(self.df)
 
     def _load_image(self, url):
-        import hashlib
         url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()
         local_path = os.path.join(self.image_dir, f"{url_hash}.jpg")
         if os.path.exists(local_path):
@@ -112,34 +114,34 @@ class AdvancedMultimodalDataset(Dataset):
             response = requests.get(url, timeout=5)
             img = Image.open(BytesIO(response.content)).convert("RGB")
             return img
-        except Exception as e:
+        except Exception:
             return Image.new('RGB', (224, 224), color='black')
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        
+
         # 1. Text
         text = str(row['comment_clean'])
         text_inputs = self.tokenizer(
-            text, 
-            truncation=True, 
-            padding='max_length', 
-            max_length=self.max_length, 
+            text,
+            truncation=True,
+            padding='max_length',
+            max_length=self.max_length,
             return_tensors="pt"
         )
-        
+
         # 2. Images (List)
         try:
             image_urls = ast.literal_eval(row['image_url'])
-        except:
+        except Exception:
             image_urls = [row['image_url']]
-            
+
         images = [self._load_image(url) for url in image_urls]
-        
+
         # Process qua ImageProcessor (sẽ ra dạng [N, 3, 224, 224])
         # Lưu ý: Trainer cần viết thêm collate_fn để pad số lượng N cho đều trong 1 batch.
         image_inputs = self.image_processor(images, return_tensors="pt")['pixel_values']
-        
+
         # 3. Labels
         factor_scores = torch.tensor([
             row['food_score'],
@@ -148,7 +150,7 @@ class AdvancedMultimodalDataset(Dataset):
             row['service_score'],
             row['overall_satisfaction']
         ], dtype=torch.float)
-        
+
         return {
             'input_ids': text_inputs['input_ids'].squeeze(0),
             'attention_mask': text_inputs['attention_mask'].squeeze(0),

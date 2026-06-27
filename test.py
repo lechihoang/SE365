@@ -1,5 +1,10 @@
-import torch
+import os
+import json
+import csv
+
 import numpy as np
+import torch
+import timm
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoImageProcessor
 
@@ -8,20 +13,17 @@ from src.dataset import MultimodalDataset
 from Models.TextModel import TextModel
 from Models.ImageModel import ImageModel
 from Models.FusionModel import FusionModel
-import os
-import json
 
 
 class TimmProcessor:
     def __init__(self, model_name):
-        import timm
         data_config = timm.data.resolve_model_data_config(model_name)
         self.transform = timm.data.create_transform(**data_config, is_training=False)
 
     def __call__(self, images, return_tensors="pt"):
-        import torch
         pixel_values = torch.stack([self.transform(img.convert('RGB')) for img in images])
         return {'pixel_values': pixel_values}
+
 
 def load_ckpt(model, path, device):
     ckpt = torch.load(path, map_location=device)
@@ -111,7 +113,7 @@ def test():
             else:
                 inputs = {k: batch[k].to(device) for k in ['input_ids', 'attention_mask', 'pixel_values', 'num_images'] if k in batch}
 
-            with torch.cuda.amp.autocast(enabled=use_amp):
+            with torch.amp.autocast('cuda', enabled=use_amp):
                 output = model(**inputs)
                 preds  = output[0] if isinstance(output, tuple) else output
 
@@ -154,7 +156,7 @@ def test():
     # ── Save ───────────────────────────────────────────────────────────────────
     exp_dir = getattr(args, 'save_path', './checkpoints')
     os.makedirs(exp_dir, exist_ok=True)
-    
+
     # ---- 1. Save Metrics ----
     out_path = os.path.join(exp_dir, 'test_metrics.json')
     with open(out_path, 'w') as f:
@@ -162,7 +164,6 @@ def test():
     print(f"\nSaved test metrics to {out_path}")
 
     # ---- 2. Save Predictions CSV ----
-    import csv
     pred_path = os.path.join(exp_dir, 'test_predictions.csv')
     header = ['index', 'split']
     for n in factor_names:
@@ -188,7 +189,7 @@ def test():
         import matplotlib.pyplot as plt
         import seaborn as sns
         sns.set_theme(style="whitegrid")
-        
+
         # Plot 1: Bar chart of MAE per aspect
         plt.figure(figsize=(8, 5))
         maes = [metrics[f'mae_{n}'] for n in factor_names]
@@ -200,21 +201,22 @@ def test():
         plt.tight_layout()
         plt.savefig(os.path.join(exp_dir, 'test_mae_aspects.png'), dpi=150)
         plt.close()
-        
+
         # Plot 2: Scatter plots of Pred vs True for each aspect
+        # Labels are on a 0-10 scale, so the identity line spans [0, 10].
         fig, axes = plt.subplots(1, 5, figsize=(25, 5))
         for i, n in enumerate(factor_names):
             axes[i].scatter(all_targets[:, i], all_preds[:, i], alpha=0.3, color='steelblue')
-            axes[i].plot([1, 5], [1, 5], 'r--', linewidth=2)  # Perfect prediction line
+            axes[i].plot([0, 10], [0, 10], 'r--', linewidth=2)  # Perfect prediction line
             axes[i].set_title(f'{n.capitalize()} (R²: {metrics[f"r2_{n}"]:.2f})', fontsize=14)
             axes[i].set_xlabel('True Score')
             axes[i].set_ylabel('Predicted Score')
-            axes[i].set_xlim(0.5, 5.5)
-            axes[i].set_ylim(0.5, 5.5)
+            axes[i].set_xlim(0, 10)
+            axes[i].set_ylim(0, 10)
         plt.tight_layout()
         plt.savefig(os.path.join(exp_dir, 'test_scatter_pred_vs_true.png'), dpi=150)
         plt.close()
-        
+
         # Plot 3: Histogram of Errors
         fig, axes = plt.subplots(1, 5, figsize=(25, 5))
         for i, n in enumerate(factor_names):
@@ -226,7 +228,7 @@ def test():
         plt.tight_layout()
         plt.savefig(os.path.join(exp_dir, 'test_error_distributions.png'), dpi=150)
         plt.close()
-        
+
         print(f"Saved test visualizations as PNGs in {exp_dir}")
     except ImportError:
         print("matplotlib or seaborn not installed, skipping visualizations. Install with: pip install matplotlib seaborn")

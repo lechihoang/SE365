@@ -1,10 +1,17 @@
 import torch
 import torch.nn as nn
 
+from Models.unfreeze import freeze_all, unfreeze_text_backbone, unfreeze_image_backbone
+
+
 class CrossAttentionFusion(nn.Module):
     """
-    Simplified Cross-Attention Fusion.
-    text CLS attends to image (as key/value) and vice versa.
+    Cross-Attention Fusion (token <-> patch).
+
+    Text tokens (B, T, d_t) attend to image patch tokens (B, P, d_i),
+    and image patches attend back to text tokens — bidirectional, with
+    proper padding masks on both sides. This is real cross-attention, not
+    the degenerate 1-vector-per-modality variant.
     """
     def __init__(self, text_model, image_model, num_factors=5,
                  unfreeze_text_layers=0, unfreeze_image_layers=0, num_heads=8):
@@ -12,25 +19,15 @@ class CrossAttentionFusion(nn.Module):
         self.text_model = text_model
         self.image_model = image_model
 
-        for param in list(self.text_model.parameters()) + list(self.image_model.parameters()):
-            param.requires_grad = False
-
-        if unfreeze_text_layers > 0:
-            if hasattr(self.text_model.encoder, 'encoder') and hasattr(self.text_model.encoder.encoder, 'layer'):
-                for layer in self.text_model.encoder.encoder.layer[-unfreeze_text_layers:]:
-                    for param in layer.parameters():
-                        param.requires_grad = True
-
-        if unfreeze_image_layers > 0:
-            if hasattr(self.image_model.encoder, 'stages'):
-                for block in self.image_model.encoder.stages[-1].blocks[-unfreeze_image_layers:]:
-                    for param in block.parameters():
-                        param.requires_grad = True
+        freeze_all(text_model, image_model)
+        unfreeze_text_backbone(text_model, unfreeze_text_layers)
+        unfreeze_image_backbone(image_model, unfreeze_image_layers)
 
         text_dim  = self.text_model.encoder.config.hidden_size
         image_dim = self.image_model.encoder.num_features
         hidden = 512
 
+        # Keep these names so old checkpoints partially map.
         self.text_proj  = nn.Linear(text_dim,  hidden)
         self.image_proj = nn.Linear(image_dim, hidden)
         self.cross_attn_t2i = nn.MultiheadAttention(hidden, num_heads, batch_first=True, dropout=0.1)
@@ -45,17 +42,35 @@ class CrossAttentionFusion(nn.Module):
             nn.Linear(256, num_factors)
         )
 
+    @staticmethod
+    def _masked_mean(x, keep_mask):
+        # x: (B, L, D), keep_mask: (B, L) bool, True == real
+        m = keep_mask.unsqueeze(-1).to(x.dtype)
+        return (x * m).sum(dim=1) / m.sum(dim=1).clamp(min=1)
+
     def forward(self, input_ids, attention_mask, pixel_values, num_images=None):
-        _, text_feat  = self.text_model(input_ids, attention_mask)
-        _, image_feat = self.image_model(pixel_values, num_images=num_images)
-        text_feat  = text_feat.float()
-        image_feat = image_feat.float()
+        # Token-level text features + pad mask (True == PAD).
+        _, _, text_tokens, text_pad = self.text_model(input_ids, attention_mask, return_tokens=True)
+        # Patch-level image features + valid mask (True == real patch).
+        image_patches, patch_mask = self.image_model.forward_features(pixel_values, num_images=num_images)
 
-        t = self.text_proj(text_feat).unsqueeze(1)   # (B, 1, hidden)
-        i = self.image_proj(image_feat).unsqueeze(1) # (B, 1, hidden)
+        text_tokens   = text_tokens.float()
+        image_patches = image_patches.float()
 
-        t_out, _ = self.cross_attn_t2i(query=t, key=i, value=i)
-        i_out, _ = self.cross_attn_i2t(query=i, key=t, value=t)
+        t = self.text_proj(text_tokens)     # (B, T, hidden)
+        i = self.image_proj(image_patches)  # (B, P, hidden)
 
-        fused = torch.cat([t_out.squeeze(1), i_out.squeeze(1)], dim=1)
+        # key_padding_mask: True == position is PAD and must be ignored.
+        t_kpm = text_pad                         # (B, T) True==PAD
+        i_kpm = ~patch_mask                      # (B, P) True==PAD
+
+        t_out, _ = self.cross_attn_t2i(query=t, key=i, value=i, key_padding_mask=i_kpm)
+        i_out, _ = self.cross_attn_i2t(query=i, key=t, value=t, key_padding_mask=t_kpm)
+
+        # Masked mean pool over the attended representations.
+        t_keep = ~t_kpm
+        t_pooled = self._masked_mean(t_out, t_keep)
+        i_pooled = self._masked_mean(i_out, patch_mask)
+
+        fused = torch.cat([t_pooled, i_pooled], dim=1)
         return self.head(fused)
