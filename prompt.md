@@ -1,655 +1,498 @@
 # ROLE
 
-You are a Principal AI Engineer, Senior ML Infrastructure Engineer, and Principal Explainable AI Research Scientist.
+You are a Principal XAI Engineer, Senior PyTorch Debugging Engineer, and Research Software Architect.
 
-You are an expert in
+You specialize in:
 
-- Explainable AI (Grad-CAM, Attention, SHAP, LIME)
-- PyTorch
-- Google Colab
-- Software Architecture
-- MLOps
-- Research Codebase Design
-- Reproducible Deep Learning
-- Clean Code
-- Notebook Engineering
-
-Your responsibility is NOT only to implement the proposal.
-
-Your responsibility is to implement it in a way that is consistent with the entire existing codebase so that later Phases (Phase 2 → Phase 8) can reuse the infrastructure without requiring refactoring.
+- Grad-CAM
+- PyTorch hooks
+- timm Swin Transformer
+- Multimodal Deep Learning
+- Regression XAI
+- Debugging attribution methods
+- Research-grade notebook engineering
 
 ---
 
 # GOAL
 
-Read the entire codebase and all required documents to fully understand the current project.
+Read the entire codebase and all Phase 2 implementation files.
 
-Especially study carefully
+Diagnose why the Grad-CAM heatmaps for all 5 targets:
 
-**Phase_1_Infrastructure_Proposal.md**
-
-This document is the implementation specification.
-
-Current proposal:
-
-After understanding the whole project,
-
-implement **Phase 1** completely.
-
-The implementation quality should be production-ready, research-grade, reproducible, maintainable, and fully consistent with the existing project architecture.
-
----
-
-# CONTEXT
-
-Before writing any code,
-
-carefully study the entire project.
-
-Understand
-
-- current project architecture
-- current folder structure
-- current experiment workflow
-- current notebook workflow
-- current .py + notebook pattern
-- training pipeline
-- testing pipeline
-- inference pipeline
-- experiment folder organization
-- Google Drive artifact organization
-- checkpoint loading
-- config loading
-- preprocessing
-- image loading
-- logging
-- output saving
-- utility functions
-
-Do NOT redesign the project.
-
-Reuse the current implementation style whenever possible.
-
----
-
-# IMPLEMENTATION REQUIREMENTS
-
-## 1.
-
-Follow the coding style already used throughout the codebase.
-
-The new implementation should look as if it was written by the same developer who wrote the existing experiments.
-
-Do not suddenly introduce another coding style.
-
----
-
-## 2.
-
-Study all existing notebooks.
-
-Understand
-
-- notebook organization
-- parameter cells
-- import cells
-- drive mounting
-- path configuration
-- logging style
-- visualization style
-
-Implement Phase 1 notebook using exactly the same workflow.
-
----
-
-## 3.
-
-Study how experiment artifacts are currently stored.
-
-Especially
-
-Google Drive
-
-```
-/content/drive/MyDrive/SE365
+```text
+food_score
+price_score
+atmosphere_score
+service_score
+overall_satisfaction
 ```
 
-Reuse the existing storage strategy.
+look almost identical.
 
-Do NOT invent another folder hierarchy.
+Then fix the implementation if there is a bug or design issue.
 
----
+If the root cause cannot be diagnosed purely from code inspection, add diagnostic logging and sanity-check cells to the notebook so the cause can be identified when the notebook runs.
 
-## 4.
-
-Automatically decide which outputs belong inside the repository
-
-and
-
-which outputs belong on Google Drive.
-
-General principle
-
-Repository
-
-- reusable code
-- notebooks
-- configs
-- documentation
-- utilities
-- wrappers
-
-Drive
-
-- checkpoints
-- json outputs
-- csv outputs
-- raw values
-- logs
-- figures
-- reports
-- temporary artifacts
-- large generated files
-
-Reuse the same philosophy already used by existing experiments.
+After fixing, update the Phase 2 notebook so it runs Grad-CAM for **15 samples** instead of only 3 samples.
 
 ---
 
-## 5.
+# FILES TO READ FIRST
 
-Whenever a notebook cell generates any file,
+Read the entire codebase.
 
-immediately print
+Especially read:
 
+```text
+Models/ImageModel.py
+Models/TextModel.py
+Models/CrossAttentionFusion.py
+Models/FusionModel.py
+Models/GMUFusion.py
+Models/GatedCrossModalFusion.py
+Models/FiLMFusion.py
+src/dataset.py
+main.py
+test.py
+xai/config.py
+xai/utils.py
+xai/gradcam_explainer.py
+xai/notebooks/Phase2_GradCAM.ipynb
+Phase_2_GradCAM_Proposal.md
+Phase_2_IMPLEMENTATION_NOTES.md
+Phase_2_FIX_REPORT.md
+Phase_1_IMPLEMENTATION_NOTES.md
 ```
+
+Understand exactly:
+
+- how ImageModel processes multi-image inputs
+- where Swin-B pooling happens
+- what tensor shape the target layer returns
+- whether hooks are attached before or after spatial pooling
+- how gradients flow from each target score back to the image encoder
+- whether each target actually produces different gradients
+- whether CAM normalization hides differences
+- whether CAMs are accidentally reused across targets
+
+---
+
+# CURRENT OBSERVATION
+
+Grad-CAM runs successfully.
+
+However, for several samples, the heatmaps for:
+
+```text
+Food
+Price
+Atmosphere
+Service
+Overall Satisfaction
+```
+
+look almost identical.
+
+This may mean one of the following:
+
+1. Implementation bug.
+2. Wrong target layer.
+3. Target-specific backward is not actually target-specific.
+4. CAMs are being reused accidentally.
+5. Gradients from all 5 outputs to the image branch are almost identical.
+6. Final Swin-B layer is too coarse or too close to global pooling.
+7. Min-max normalization makes weak target CAMs look artificially strong.
+8. The selected sample genuinely uses the same visual evidence for all targets.
+
+Your task is to determine which explanation is most likely.
+
+---
+
+# DIAGNOSTIC PRIORITY
+
+First, try to diagnose by reading the code.
+
+Only if static code inspection cannot prove the cause, add diagnostic logging/cells to the notebook.
+
+Do not blindly add logs before understanding the code.
+
+---
+
+# REQUIRED DIAGNOSTIC CHECKS
+
+Add the following diagnostic checks to the Phase 2 notebook and/or `gradcam_explainer.py` as needed.
+
+## 1. Target score check
+
+For each sample, print the model predictions:
+
+```text
+food_score
+price_score
+atmosphere_score
+service_score
+overall_satisfaction
+```
+
+Verify that the 5 predicted scores are not all identical.
+
+---
+
+## 2. Target-specific backward check
+
+For each target index:
+
+```python
+target_score = preds[0, target_idx]
+target_score.backward()
+```
+
+Print:
+
+```text
+target_idx
+target_name
+target_score
+```
+
+Verify the correct target is selected each time.
+
+---
+
+## 3. Gradient statistics per target
+
+For each target, compute gradient stats at the hooked image layer:
+
+```text
+grad_mean
+grad_std
+grad_abs_mean
+grad_abs_max
+nonzero_ratio
+```
+
+If all gradient stats are identical across 5 targets, investigate why.
+
+---
+
+## 4. Gradient similarity matrix
+
+For one sample and one image, compute cosine similarity between flattened gradients of all 5 targets.
+
+Save/print a 5×5 matrix:
+
+```text
+Gradient Similarity Matrix
+```
+
+Interpretation:
+
+- similarity ≈ 1.0 for all pairs means image-branch gradients are nearly identical across targets
+- similarity clearly below 1.0 means targets are different, but visualization may hide differences
+
+---
+
+## 5. Raw CAM similarity matrix
+
+Compute pairwise correlation between raw CAM arrays for all 5 targets.
+
+Save/print a 5×5 matrix:
+
+```text
+Raw CAM Correlation Matrix
+```
+
+Do this before overlay and before any visual formatting.
+
+---
+
+## 6. Raw CAM value range
+
+For each target, print:
+
+```text
+cam_min
+cam_max
+cam_mean
+cam_std
+```
+
+This checks whether min-max normalization makes weak/flat CAMs look artificially strong.
+
+---
+
+## 7. Target layer comparison
+
+Try multiple candidate target layers:
+
+```text
+image_model.encoder.norm
+image_model.encoder.layers[-1]
+image_model.encoder.layers[-1].blocks[-1]
+image_model.encoder.layers[-1].blocks[-1].norm2
+```
+
+Use only those that exist in the actual code.
+
+For each candidate layer, generate CAMs and compute target similarity.
+
+Select the best layer based on:
+
+- valid spatial feature map
+- nonzero gradients
+- target-specific differences
+- semantic plausibility
+- stability
+
+Do not assume `encoder.norm` is always best.
+
+---
+
+## 8. CAM reuse bug check
+
+Verify that the loop creates a new CAM for every:
+
+```text
+image_idx
+target_idx
+```
+
+Check that:
+
+- CAM arrays are not the same object
+- CAM arrays are not overwritten
+- saved filenames are unique
+- dictionary keys include both image_idx and target_idx
+
+---
+
+## 9. Multi-image indexing check
+
+Verify that when the model flattens images as `[B*N, C, H, W]`, the code slices the correct image index.
+
+For current batch size B=1, image index mapping is:
+
+```text
+flat_index = image_idx
+```
+
+But implement it explicitly and document it.
+
+If later batch size > 1, use:
+
+```text
+flat_index = batch_idx * max_images + image_idx
+```
+
+---
+
+# FIX REQUIREMENTS
+
+After diagnosis, fix the root issue.
+
+Potential fixes may include:
+
+## If target layer is too late/coarse
+
+Update target layer selection to prefer the layer that gives the best target-specific Grad-CAM.
+
+Document why the new layer is better.
+
+---
+
+## If gradients are actually identical
+
+Do not fake target specificity.
+
+Instead:
+
+- keep the implementation correct
+- add diagnostics showing gradient similarity
+- explain in notes that the image branch provides similar visual evidence for these targets
+- recommend using SHAP or text attribution for target-level differences
+
+---
+
+## If normalization hides differences
+
+Save both:
+
+```text
+normalized CAM
+raw CAM
+```
+
+Also add optional fixed-scale visualization or side-by-side raw statistic reporting.
+
+---
+
+## If CAMs are accidentally reused
+
+Fix the loop/storage/saving logic.
+
+---
+
+## If wrong target is selected
+
+Fix target indexing immediately.
+
+---
+
+# NOTEBOOK UPDATE REQUIREMENT
+
+Update:
+
+```text
+xai/notebooks/Phase2_GradCAM.ipynb
+```
+
+so that it runs Grad-CAM for **15 samples** instead of 3.
+
+The notebook should define:
+
+```python
+NUM_GRADCAM_SAMPLES = 15
+```
+
+and use this value consistently.
+
+Do not hardcode 15 in multiple places.
+
+---
+
+# SAMPLE SELECTION REQUIREMENT
+
+Do not simply use the first 15 rows blindly if there is a better existing sample selection method.
+
+Implement a reasonable selection strategy:
+
+1. Include several high-confidence correct samples.
+2. Include several high-error samples.
+3. Include several multi-image samples.
+4. Include several samples with different dominant visual content if possible.
+
+If the notebook cannot implement this robustly yet, fall back to the first 15 test samples but clearly document this limitation.
+
+---
+
+# OUTPUT REQUIREMENTS
+
+After the fix, the notebook should save:
+
+```text
+gradcam outputs for 15 samples
+diagnostic summary json
+gradient similarity matrices
+raw CAM similarity matrices
+target layer comparison results
+updated batch summary json
+```
+
+All outputs should be saved under the existing Phase 2 output folder, for example:
+
+```text
+/content/drive/MyDrive/SE365/experiments/EXP_060A_bestsequential_full_configuration/xai/gradcam/
+```
+
+Every saved file must print:
+
+```text
 Saved:
-
 <absolute path>
 ```
 
-Examples
-
-```
-Saved:
-
-/content/drive/MyDrive/SE365/xai/phase1/verification.json
-```
-
-```
-Saved:
-
-/content/drive/MyDrive/SE365/xai/phase1/sample_prediction.json
-```
-
-```
-Saved:
-
-/content/drive/MyDrive/SE365/xai/phase1/log.txt
-```
-
-The user must always know where every generated artifact is located.
-
 ---
-
-## 6.
-
-Every notebook section must clearly print progress.
-
-Example
-
-```
-============================
-
-Phase 1
-
-Step 4/10
-
-Load Model
-
-============================
-```
-
-Every important step should print
-
-- Started
-- Finished
-- Execution time
-
----
-
-## 7.
-
-All notebook cells must be independent.
-
-Running one cell twice
-
-must never corrupt outputs
-
-must never duplicate folders
-
-must never overwrite important files unexpectedly.
-
-Use
-
-```
-exist_ok=True
-```
-
-when appropriate.
-
----
-
-## 8.
-
-Never hardcode paths.
-
-Everything should come from
-
-```
-PROJECT_ROOT
-
-DRIVE_ROOT
-
-EXP_ID
-
-CONFIG
-
-```
-
-Users should only need to modify
-
-one configuration cell.
-
----
-
-## 9.
-
-Every generated figure
-
-JSON
-
-CSV
-
-report
-
-must include metadata.
-
-Examples
-
-- experiment id
-- timestamp
-- checkpoint
-- git commit (if available)
-- device
-- seed
-- model names
-- fusion type
-- target names
-
----
-
-## 10.
-
-Every utility function
-
-must include
-
-- type hints
-- docstrings
-- comments explaining non-obvious logic
-
----
-
-## 11.
-
-Implement robust exception handling.
-
-Examples
-
-checkpoint missing
-
-CSV missing
-
-image missing
-
-Drive unavailable
-
-GPU unavailable
-
-invalid config
-
-Instead of crashing,
-
-print meaningful messages explaining how to fix the issue.
-
----
-
-## 12.
-
-The notebook should contain a final
-
-Verification Summary
-
-that clearly reports
-
-PASS / FAIL
-
-for every verification item.
-
-Example
-
-```
-✔ Model loaded
-
-✔ Config loaded
-
-✔ Prediction verified
-
-✔ Intermediate tensors extracted
-
-✔ Attention extraction verified
-
-✔ Spatial feature extraction verified
-
-✔ Artifact saving verified
-
-✔ Infrastructure ready
-```
-
----
-
-## 13.
-
-Implement reproducibility.
-
-Everything should be deterministic.
-
-Verify
-
-- random
-- numpy
-- torch
-- cuda
-
-Document
-
-seed
-
-device
-
-library versions
-
-inside the final report.
-
----
-
-## 14.
-
-The implementation should already consider future phases.
-
-Do NOT write code that only works for Phase 1.
-
-Design utilities
-
-folder structure
-
-logging
-
-artifact naming
-
-helper functions
-
-to be reusable by
-
-Phase 2
-
-Phase 3
-
-...
-
-Phase 8.
-
----
-
-## 15.
-
-Every saved artifact should follow a consistent naming convention.
-
-Examples
-
-```
-verification_report.json
-
-sample_prediction.json
-
-environment.json
-
-runtime_log.txt
-
-phase1_summary.json
-
-```
-
-Avoid inconsistent filenames.
-
----
-
-## 16.
-
-If any part of the proposal is inconsistent with the actual codebase,
-
-follow the codebase,
-
-NOT the proposal.
-
-Explain the reason inside comments.
-
-The implementation must always stay compatible with the current project.
-
----
-
-## 17.
-
-Do NOT modify existing training code unless absolutely necessary.
-
-Prefer
-
-wrappers
-
-utilities
-
-new helper modules
-
-instead of changing existing experiment code.
-
-Backward compatibility must be preserved.
-
----
-
-# SELF REVIEW
-
-After finishing the implementation,
-
-perform a complete code review.
-
-Check
-
-- folder structure
-- imports
-- path handling
-- notebook execution order
-- code duplication
-- naming consistency
-- logging consistency
-- artifact saving
-- compatibility with current experiments
-- compatibility with future XAI phases
-- maintainability
-- reproducibility
-
-If any issue is found,
-
-fix it before finishing.
-
-Do NOT execute the notebook.
-
-Only review the implementation logic.
-
-Repeat the review until the implementation is technically sound, production-ready, and fully aligned with the current codebase.
-
-'''
 
 # IMPLEMENTATION NOTES
 
-After completing the implementation, generate one additional document:
+After finishing, update or create:
 
 ```text
-IMPLEMENTATION_NOTES.md
+Phase_2_IMPLEMENTATION_NOTES.md
 ```
 
-This document is intended for future maintenance, reproducibility, and Phase 2–8 development.
-
-It should briefly summarize the implementation decisions instead of repeating the proposal.
-
-Include the following sections.
-
----
-
-## 1. Proposal Compliance
-
-Clearly list
-
-which parts were implemented exactly as specified in the proposal.
-
-Example
+Add a new section:
 
 ```text
-✔ load_model() implemented exactly as proposal
-
-✔ save_figure() implemented exactly as proposal
-
-✔ verification notebook follows proposal workflow
+## Grad-CAM Target Similarity Diagnosis
 ```
 
----
+Explain:
 
-## 2. Proposal Deviations
-
-List every place where the proposal could NOT be followed exactly.
-
-For each deviation explain
-
-- proposal requirement
-- actual implementation
-- why the proposal does not match the current codebase
-- why the chosen implementation is better
+- whether the issue was a bug or an expected behavior
+- what evidence supports the conclusion
+- which diagnostics were added
+- which target layer was selected
+- whether target-specificity improved
+- remaining limitations
 
 ---
 
-## 3. Engineering Decisions
+# FIX REPORT
 
-Document every important implementation decision made during development.
-
-Examples
-
-- utility structure
-- wrapper organization
-- hook location
-- artifact naming
-- logging strategy
-- folder organization
-- notebook workflow
-- helper function design
-
-These decisions should help future developers understand the implementation philosophy.
-
----
-
-## 4. Assumptions
-
-Clearly state every assumption used during implementation.
-
-Examples
-
-- expected checkpoint format
-- expected folder structure
-- expected experiment outputs
-- expected config format
-- expected dataset format
-
-The assumptions should be easy to verify later.
-
----
-
-## 5. Compatibility with Existing Codebase
-
-Describe
-
-how the implementation integrates with
-
-- current experiments
-- current notebooks
-- current utilities
-- current folder organization
-
-Explain whether any backward compatibility considerations were required.
-
----
-
-## 6. Reusable Components for Future Phases
-
-List every reusable component created in Phase 1.
-
-Examples
+Create or update:
 
 ```text
-load_model()
-
-load_single_sample()
-
-get_prediction()
-
-save_figure()
-
-save_raw_values()
-
-config.py
-
-utils.py
-
-verification notebook
+Phase_2_FIX_REPORT.md
 ```
 
-Explain briefly how each component will be reused in
+Include:
 
-Phase 2
-
-Phase 3
-
-...
-
-Phase 8.
-
----
-
-## 7. Suggested Improvements
-
-If you found opportunities to improve the implementation
-
-without breaking compatibility,
-
-document them here instead of modifying the code automatically.
-
-These improvements can be considered in future refactoring.
+1. Problem observed
+2. Root cause analysis
+3. Files modified
+4. Diagnostic checks added
+5. Fixes applied
+6. Remaining risks
+7. How to verify the fix by running the notebook
 
 ---
 
-## 8. Implementation Summary
+# QUALITY REQUIREMENTS
 
-Write a concise one-page summary describing
+The implementation must be:
 
-- what was implemented
-- what remains for later phases
-- whether Phase 1 is fully ready for Phase 2
+- professional
+- reproducible
+- Colab-friendly
+- notebook-friendly
+- research-grade
+- thesis-ready
 
-The goal is that another developer (or another AI Coding model) can read only this document and immediately understand the implementation status.
+Do not break Phase 1.
+
+Do not break existing experiment code.
+
+Do not modify model weights.
+
+Do not retrain anything.
+
+Do not use test results to select a new model.
+
+Only debug and improve the Grad-CAM implementation.
+
+---
+
+# FINAL SELF-REVIEW
+
+After making changes, perform a complete static review.
+
+Check:
+
+- imports
+- paths
+- notebook cell order
+- target indexing
+- target layer selection
+- hook cleanup
+- gradient zeroing
+- CAM storage keys
+- CAM file names
+- metadata completeness
+- diagnostics saving
+- 15-sample execution logic
+- compatibility with Phase 1 utilities
+- compatibility with future XAI phases
+
+Fix any issue found before finishing.
