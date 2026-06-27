@@ -59,8 +59,8 @@ Without an automated selection pipeline, case studies are chosen manually, which
 
 | File | Source | Contents |
 |---|---|---|
-| `experiments/EXP_XXX/test_predictions.csv` | `test.py` | Per-sample: `index`, `split`, `y_true_{factor}`, `y_pred_{factor}`, `absolute_error_{factor}` for all 5 targets |
-| `experiments/EXP_XXX/predictions.csv` | `Trainer.py` | Same format for the validation set |
+| `experiments/EXP_060A/test_predictions.csv` | `test.py` | Per-sample: `index`, `split`, `y_true_{factor}`, `y_pred_{factor}`, `absolute_error_{factor}` for all 5 targets |
+| `experiments/EXP_060A/predictions.csv` | `Trainer.py` | Same format for the validation set |
 
 Column names for factors: `food`, `price`, `atmos`, `service`, `overall`.
 
@@ -76,10 +76,10 @@ The `image_url` column contains a Python list literal of up to 4 image URLs per 
 
 | Phase | Artifact Directory | Key Files |
 |---|---|---|
-| Phase 2 (Grad-CAM) | `experiments/EXP_XXX/xai/gradcam/` | `sample_{idx}_target{t}_{factor}_overlay.png`, `sample_{idx}_target{t}_{factor}_raw.npy` |
-| Phase 3 (Attention) | `experiments/EXP_XXX/xai/attention/` | `sample_{idx}_token_heatmap.png`, `sample_{idx}_cls_importance.npy`, `sample_{idx}_word_importance.json` |
-| Phase 4 (SHAP) | `experiments/EXP_XXX/xai/shap/` | `sample_{idx}_shap_values.npy`, `sample_{idx}_modality_contribution.json` |
-| Phase 5 (LIME) | `experiments/EXP_XXX/xai/lime/` (if completed) | `sample_{idx}_target{t}_lime_image.png`, `sample_{idx}_target{t}_lime_text.json` |
+| Phase 2 (Grad-CAM) | `experiments/EXP_060A/xai/gradcam/` | `sample_{idx}_target{t}_{factor}_overlay.png`, `sample_{idx}_target{t}_{factor}_raw.npy` |
+| Phase 3 (Attention) | `experiments/EXP_060A/xai/attention/` | `sample_{idx}_token_heatmap.png`, `sample_{idx}_cls_importance.npy`, `sample_{idx}_word_importance.json` |
+| Phase 4 (SHAP) | `experiments/EXP_060A/xai/shap/` | `sample_{idx}_shap_values.npy`, `sample_{idx}_modality_contribution.json` |
+| Phase 5 (LIME) | `experiments/EXP_060A/xai/lime/{sample_id}/` | `{sample_id}_lime_image_{factor}_positive.png`, `{sample_id}_lime_image_{factor}_combined.png`, `{sample_id}_lime_text_{factor}_bar.png`, `{sample_id}_lime_text_{factor}_weights.json`, `{sample_id}_lime_text_{factor}.html`, `metadata.json` |
 
 ### SHAP Modality Contribution Data
 
@@ -102,13 +102,13 @@ The SHAP modality contribution JSON (from Phase 4) contains per-sample, per-targ
 
 | File | Purpose |
 |---|---|
-| `experiments/EXP_XXX/best_model_train_fusion.pth` | Best model checkpoint (Swin-B + PhoBERT + CrossAttentionFusion + LogCosh) |
+| `experiments/EXP_060A/best_model_train_fusion.pth` | Best model checkpoint (Swin-B + PhoBERT + CrossAttentionFusion + LogCosh) |
 
 ### Configuration
 
 | File | Purpose |
 |---|---|
-| `experiments/EXP_XXX/config.yaml` or `config.json` | Experiment hyperparameters and architecture settings |
+| `experiments/EXP_060A/config.yaml` or `config.json` | Experiment hyperparameters and architecture settings |
 
 ---
 
@@ -157,6 +157,13 @@ Phase 4 (SHAP) ──────────┼──▶ Phase 6 (Case Study) �
 Phase 5 (LIME) ──────────┤                            Metadata JSONs
 Prediction CSVs ─────────┤                            Analysis Text
 Dataset CSVs ────────────┘                            Master Index
+
+**Note:** As of the current implementation, all four XAI phases (2–5) are complete.
+LIME is a **first-class** component in Phase 6, not optional. Every case study
+should include LIME image and text explanations alongside Grad-CAM, Attention,
+and SHAP evidence. If a sample lacks LIME artifacts (e.g., because Phase 5 was
+run on a different sample set), the combined figure should include a "LIME not
+available" placeholder rather than omitting the LIME row entirely.
 ```
 
 ---
@@ -188,7 +195,7 @@ This module contains all selection logic. It reads prediction data and XAI artif
 **Responsibility:** Load SHAP modality contribution data for all samples that have it.
 
 **Inputs:**
-- `shap_dir`: path to `experiments/EXP_XXX/xai/shap/`
+- `shap_dir`: path to `experiments/EXP_060A/xai/shap/`
 
 **Returns:** Dictionary mapping `sample_id` to modality contribution dict. Each entry has per-target `text_pct` and `image_pct`.
 
@@ -383,7 +390,7 @@ This module assembles individual XAI artifacts into single thesis-ready combined
 
 **Responsibility:** Create a single combined figure assembling all XAI evidence for one sample and one target.
 
-**Figure layout:**
+**Figure layout (6-panel with LIME as mandatory row):**
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -394,19 +401,26 @@ This module assembles individual XAI artifacts into single thesis-ready combined
 │  Row 1, Col 1:         │  Row 1, Col 2:                 │
 │  Original Image        │  Grad-CAM Overlay              │
 │  (first/primary image) │  (for this target)             │
+├────────────────────────┼────────────────────────────────┤
+│  Row 2, Col 1:         │  Row 2, Col 2:                 │
+│  Attention Token       │  SHAP Modality Contribution    │
+│  Importance Bar Chart  │  Bar (text-origin% vs img%)    │
+├────────────────────────┼────────────────────────────────┤
+│  Row 3, Col 1:         │  Row 3, Col 2:                 │
+│  LIME Image            │  LIME Text Word                │
+│  (positive superpixels)│  Importance Bar Chart          │
 ├────────────────────────┴────────────────────────────────┤
-│  Row 2:                                                  │
-│  Left: Attention Token Importance Bar Chart              │
-│  Right: SHAP Modality Contribution Bar (text% vs img%)   │
-├─────────────────────────────────────────────────────────┤
-│  Row 3 (optional, if include_lime=True):                 │
-│  Left: LIME Image Explanation                            │
-│  Right: LIME Text Word Importance                        │
-├─────────────────────────────────────────────────────────┤
 │  Footer: Review text (truncated to 200 chars)            │
 │  All 5 predictions: food=X, price=X, atmos=X, ...        │
+│  All 5 ground truths + absolute errors                   │
 └─────────────────────────────────────────────────────────┘
 ```
+
+**Figure dimensions:** 12×14 inches at 300 DPI (3600×4200 pixels).
+Previous layout was 12×10 with optional LIME; now 12×14 with mandatory LIME row.
+
+**If LIME artifacts are missing** for a sample, display a placeholder panel with
+text "LIME not available for this sample" in the Row 3 cells.
 
 **Implementation steps:**
 1. Call `configure_matplotlib_vietnamese()`.
@@ -506,10 +520,18 @@ Figure size: `(20, 4)` inches, 300 DPI.
     "atmos": "Grad-CAM highlights the restaurant interior and seating area"
   },
   "xai_artifacts": {
-    "gradcam_overlay_food": "xai/gradcam/sample_42_target0_food_overlay.png",
-    "gradcam_overlay_overall": "xai/gradcam/sample_42_target4_overall_overlay.png",
-    "attention_heatmap": "xai/attention/sample_42_token_heatmap.png",
-    "shap_contribution": "xai/shap/sample_42_modality_contribution.json"
+    "gradcam_overlay_food": "xai/gradcam/sample_0042/gradcam_img0_food.png",
+    "gradcam_overlay_overall": "xai/gradcam/sample_0042/gradcam_img0_overall.png",
+    "gradcam_5target_comparison": "xai/gradcam/sample_0042/gradcam_5target_comparison.png",
+    "attention_heatmap": "xai/attention/sample_0042/attention_layer11_mean_heatmap.png",
+    "attention_word_importance": "xai/attention/sample_0042/word_importance.json",
+    "attention_cls_bar": "xai/attention/sample_0042/cls_importance_word_bar.png",
+    "shap_modality_chart": "xai/shap/sample_0042/shap_modality_contribution.png",
+    "shap_modality_json": "xai/shap/sample_0042/shap_modality_contribution.json",
+    "lime_image_food_positive": "xai/lime/sample_0042/sample_0042_lime_image_food_positive.png",
+    "lime_image_food_combined": "xai/lime/sample_0042/sample_0042_lime_image_food_combined.png",
+    "lime_text_food_bar": "xai/lime/sample_0042/sample_0042_lime_text_food_bar.png",
+    "lime_text_food_weights": "xai/lime/sample_0042/sample_0042_lime_text_food_weights.json"
   },
   "combined_figures": [
     "xai/case_studies/case_correct_001/combined_figure_target0_food.png",
@@ -562,11 +584,20 @@ The attention mechanism highlighted the following tokens as most interactive:
 For {primary_target}, SHAP analysis showed {text_pct:.0%} text contribution and
 {image_pct:.0%} image contribution. {modality_dominance_statement}
 
+### Perturbation Validation (LIME)
+LIME image explanation for {primary_target} highlighted {lime_image_description} as the most
+supportive superpixel regions. {lime_gradcam_agreement}: LIME positive regions {overlap_description}
+with Grad-CAM hot regions, providing perturbation-based confirmation of gradient-based evidence.
+
+LIME text explanation identified {lime_top_words} as the most influential words for {primary_target}.
+{lime_attention_agreement}: LIME top words {text_overlap_description} with attention-highlighted tokens.
+
 ### Interpretation
 This case demonstrates that the model uses {modality_balance_description} to arrive at accurate
-predictions. The alignment between Grad-CAM visual evidence, attention-highlighted tokens, and
-SHAP modality contributions supports the conclusion that the model's reasoning is consistent
-with human interpretation for this sample.
+predictions. The alignment between Grad-CAM visual evidence, attention-highlighted tokens,
+SHAP modality contributions, and LIME perturbation-based importance supports the conclusion
+that the model's reasoning is consistent with human interpretation for this sample.
+The four-method convergence provides strong evidence for the model's interpretability.
 ```
 
 **Template: High-Error Case**
@@ -751,6 +782,99 @@ Detailed cell-by-cell design is provided in Section 9.
 
 ---
 
+# 6B. Enhanced Sample Selection Strategy
+
+## Scientific Sample Quality Ranking
+
+Beyond the seven case-type selectors (correct, high-error, text-dominant, image-dominant, conflict, difficult, agreement), Phase 6 should rank candidate samples by their overall quality as case study material. This ensures that selected samples are not just technically valid but also visually meaningful, information-rich, and suitable for thesis figures and defense presentations.
+
+### Multi-Criteria Ranking Formula
+
+For each candidate sample, compute:
+
+```
+SelectionScore = PredictionQuality × VisualRichness × TextRichness × MultimodalBalance × ExplanationCompleteness
+```
+
+where:
+
+| Factor | Formula | Range | Rationale |
+|---|---|---|---|
+| PredictionQuality | Case-type dependent: for correct cases, `1 / (1 + mean_error)`; for error cases, `mean_error / max_possible` | [0, 1] | Ensures the sample clearly represents its case type |
+| VisualRichness | `min(1.0, num_real_images / 2) × image_quality_proxy` | [0, 1] | Prefers multi-image reviews; `image_quality_proxy` = 1.0 if images are not all-black placeholders |
+| TextRichness | `min(1.0, text_length / 100) × aspect_keyword_coverage` | [0, 1] | Prefers reviews with 50+ characters and mentions of multiple aspects (food, price, atmosphere, service) |
+| MultimodalBalance | `1 - abs(avg_text_pct - 0.50)` (from SHAP, if available) | [0, 1] | Prefers samples where both modalities contribute (unless the case type specifically requires imbalance) |
+| ExplanationCompleteness | `num_phases_with_artifacts / 4` (Grad-CAM, Attention, SHAP, LIME) | [0.25, 1.0] | Strongly prefers samples with complete XAI coverage |
+
+### Aspect Keyword Coverage
+
+Compute the fraction of the five quality aspects that have at least one keyword present in `comment_clean`:
+
+```
+aspect_keyword_coverage = count(aspects_with_keywords) / 5
+```
+
+Keyword sets per aspect (Vietnamese):
+- **food:** ăn, món, đồ ăn, ngon, dở, nấu, vị, mùi, thơm, tươi, nóng, nguội, bánh, cơm, phở
+- **price:** giá, tiền, đắt, rẻ, hợp lý, xứng đáng, phải chăng, bình dân
+- **service:** nhân viên, phục vụ, thái độ, nhanh, chậm, chu đáo, nhiệt tình, niềm nở
+- **atmosphere:** không gian, view, đẹp, sạch, ồn, yên tĩnh, thoáng, trang trí, nội thất
+- **overall:** tổng, chung, hài lòng, ok, ổn, tốt, thất vọng, quay lại
+
+### Preferred Sample Characteristics
+
+Within each case type, prefer samples that:
+
+1. **Have multiple images** (2-4 real images rather than 1) — richer visual evidence
+2. **Have review text of moderate length** (50-200 characters) — readable in thesis figures
+3. **Are not spam or duplicated** — verify text is meaningful, not just "ok" or emojis
+4. **Have Grad-CAM that produces meaningful heatmaps** — non-uniform, spatially focused
+5. **Have SHAP modality balance** close to 50/50 (unless the case type demands imbalance)
+6. **Have LIME explanations available** — complete XAI coverage for the combined figure
+
+### Sample Display Requirements
+
+When Phase 6 selects a sample, the notebook MUST immediately display:
+
+```
+═══════════════════════════════════════════════
+  Selected Sample: sample_0042
+  Case Type: correct
+  Split: test
+═══════════════════════════════════════════════
+  Review Text:
+  "Quán rất ngon, nhân viên phục vụ nhiệt tình, 
+   không gian thoáng mát. Giá hơi cao nhưng 
+   chất lượng xứng đáng."
+
+  Images: 3 real images
+  [Image 0]  [Image 1]  [Image 2]  (displayed inline)
+
+  Predictions vs Ground Truth:
+  Target          Pred      GT    Error
+  food_score      3.92    4.00    0.08
+  price_score     3.61    3.50    0.11
+  atmosphere      3.85    4.00    0.15
+  service_score   4.38    4.50    0.12
+  overall         3.95    4.00    0.05
+
+  Selection Reason: All 5 errors < 0.3 (strict correct prediction)
+  Selection Score: 0.87
+═══════════════════════════════════════════════
+```
+
+### Sample Manifest Files
+
+Phase 6 must generate:
+
+| File | Format | Content |
+|---|---|---|
+| `selected_samples_manifest.csv` | CSV | All selected samples with: case_id, sample_idx, case_type, text (truncated), num_images, mean_error, selection_score |
+| `selected_samples_manifest.json` | JSON | Same data with full text and image URLs |
+| `selected_samples_preview.md` | Markdown | Human-readable summary with embedded image references |
+
+---
+
 # 7. Required Code Files
 
 | File | Responsibility |
@@ -787,7 +911,7 @@ case_study_runner.py
 # 8. Folder Structure
 
 ```
-experiments/EXP_XXX/xai/case_studies/
+experiments/EXP_060A/xai/case_studies/
 ├── case_correct_001/
 │   ├── combined_figure_target0_food.png
 │   ├── combined_figure_target4_overall.png
@@ -1752,7 +1876,7 @@ This layered approach makes Phase 6 robust to different Phase 4 implementations 
 
 ### 13.9. Checkpoint Immutability
 - Phase 6 NEVER modifies the model checkpoint or any Phase 2-5 artifacts.
-- All outputs go exclusively into `experiments/EXP_XXX/xai/case_studies/`.
+- All outputs go exclusively into `experiments/EXP_060A/xai/case_studies/`.
 
 ### 13.10. Thesis Integration Preparation
 - Each combined figure should be self-contained: a thesis reader should understand the case from the figure alone.

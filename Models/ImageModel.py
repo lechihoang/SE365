@@ -21,9 +21,9 @@ class ImageModel(nn.Module):
             pixel_values = pixel_values.unsqueeze(1)
 
         B, N, C, H, W = pixel_values.shape
-        features = self.encoder(pixel_values.view(B * N, C, H, W)).view(B, N, -1)
-
-        # Average pooling (mask out padding/black images)
+        features = self.encoder(pixel_values.reshape(B * N, C, H, W)).reshape(B, N, -1)
+        
+        # Average pooling
         if num_images is not None:
             mask = (torch.arange(N, device=pixel_values.device).expand(B, N) < num_images.unsqueeze(1)).float().unsqueeze(-1)
             features = (features * mask).sum(dim=1) / num_images.float().clamp(min=1).unsqueeze(1)

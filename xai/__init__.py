@@ -51,3 +51,32 @@ from xai.utils import (
     enable_eager_attention,
     normalize_feature_map_to_bchw,
 )
+
+from xai.attention_explainer import (
+    extract_phobert_attention,
+    aggregate_attention,
+    cls_token_importance,
+    merge_subword_attention,
+    plot_attention_heatmap,
+    plot_cls_importance_bar,
+    compute_attention_sink_ratio,
+    AttentionExplainer,
+    inspect_tokenization,
+)
+
+try:
+    from xai.shap_explainer import (
+        FusionHeadWrapper,
+        extract_fused_embeddings,
+        select_background,
+        compute_shap_values,
+        modality_contribution,
+        additivity_check,
+        plot_modality_contribution,
+        plot_modality_single_target,
+        SHAPExplainer,
+        run_ablation_check,
+    )
+except ImportError:
+    # shap library not installed — Phase 4 functions unavailable
+    pass
