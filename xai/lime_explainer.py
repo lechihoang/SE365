@@ -281,9 +281,11 @@ class TextLimePredictFn:
             attention_mask = encoded['attention_mask'].to(self.device)  # [batch_size, seq_len]
 
             # Repeat fixed images for the batch
+            # .expand() creates a non-contiguous view; .contiguous() ensures
+            # ImageModel.forward() can reshape the tensor safely.
             pixel_values = self.fixed_pixel_values.expand(
                 batch_size, -1, -1, -1, -1
-            ).to(self.device)
+            ).contiguous().to(self.device)
             num_images = self.fixed_num_images.expand(batch_size).to(self.device)
 
             # Run model

@@ -20,7 +20,7 @@ class ImageModel(nn.Module):
             pixel_values = pixel_values.unsqueeze(1)
             
         B, N, C, H, W = pixel_values.shape
-        features = self.encoder(pixel_values.view(B * N, C, H, W)).view(B, N, -1)
+        features = self.encoder(pixel_values.reshape(B * N, C, H, W)).reshape(B, N, -1)
         
         # Average pooling
         if num_images is not None:

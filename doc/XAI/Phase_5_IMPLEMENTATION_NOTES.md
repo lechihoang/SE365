@@ -92,7 +92,33 @@ None.
 4. **Single image explained:** For multi-image reviews, only the first image is explained. Other images remain fixed.
 5. **Superpixel granularity:** The default quickshift segmentation may not align with semantic boundaries (food vs. background).
 
-## 9. Suggestions for Phase 6
+## 9. Tensor Contiguity Fix
+
+### Root Cause
+`TextLimePredictFn.__call__()` used `self.fixed_pixel_values.expand(batch_size, ...)` to repeat the fixed images for each perturbed text in the batch. `.expand()` creates a non-contiguous view (it adjusts strides to repeat data without copying). When this tensor reached `ImageModel.forward()`, the call `pixel_values.view(B*N, C, H, W)` failed because `.view()` requires contiguous memory layout.
+
+### Why Image LIME Didn't Crash
+`ImageLimePredictFn` uses `.expand(...).clone()` on line 180, which creates a contiguous copy. The `.clone()` was added because the code also modifies index 0 of the tensor (`pixel_batch[:, 0] = perturbed_pixels`), which requires ownership. This accidental safety measure prevented the crash in image LIME.
+
+### Why Previous Phases Didn't Crash
+Phases 1-4 use `load_single_sample()` which returns tensors from `image_processor()` and `torch.tensor()` — these are always contiguous. The expand/repeat pattern only appears in LIME's batch processing wrappers.
+
+### Files Modified
+
+| File | Change |
+|---|---|
+| `Models/ImageModel.py` | `.view()` → `.reshape()` on line 23. `.reshape()` handles both contiguous and non-contiguous tensors safely. If contiguous, it returns a view (zero-copy, same as `.view()`). If non-contiguous, it copies. This is the robust production choice. |
+| `xai/lime_explainer.py` | Added `.contiguous()` after `.expand()` in `TextLimePredictFn.__call__()` line 286. Belt-and-suspenders: even though `ImageModel` now uses `.reshape()`, making the input contiguous at the source is cleaner. |
+
+### Why `.reshape()` Is Better Than `.view()` in ImageModel
+- `.view()` is strict: fails on non-contiguous tensors. This makes it fragile — any upstream code that produces non-contiguous tensors (expand, permute, transpose, slice) will cause a runtime crash.
+- `.reshape()` is flexible: returns a view if possible, copies if needed. Same performance in the common case (contiguous input), but robust for edge cases.
+- The PyTorch documentation recommends `.reshape()` when contiguity is not guaranteed.
+- This change is backward compatible — all existing callers pass contiguous tensors and get zero-copy views, identical to `.view()`.
+
+---
+
+## 10. Suggestions for Phase 6
 
 - Load LIME word weights and Attention top tokens for the same sample to compute cross-method agreement
 - Load LIME superpixel maps and Grad-CAM heatmaps to compute spatial overlap
