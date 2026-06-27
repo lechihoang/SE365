@@ -38,8 +38,12 @@
 
 ## 3. Technical Decisions
 
-### 3.1 Pure consumer architecture
-Phase 6 never loads the model or runs inference. It reads PNG images, JSON files, and CSV data from Phases 2-5 and assembles them into combined figures and analysis documents.
+### 3.1 Orchestrator architecture (upgraded from pure consumer)
+Phase 6 now operates in two modes:
+- **Consumer mode** (`model=None`): reads existing artifacts only, shows placeholders for missing ones. Backward compatible with original design.
+- **Orchestrator mode** (`model` provided): automatically generates missing XAI artifacts by calling Phase 2-5 explainer modules on-demand. This ensures every selected case study has complete multi-method explanations.
+
+The `XAIOrchestrator` class lazily initializes explainers from Phases 2-5 and calls them only when artifacts are missing. It uses cache-first logic: existing artifacts are never regenerated.
 
 ### 3.2 Artifact loading via PIL
 Combined figures are assembled by loading saved PNG images via PIL.Image.open() and displaying them in matplotlib subplots. This avoids recomputing any XAI outputs.

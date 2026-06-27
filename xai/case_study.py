@@ -6,11 +6,12 @@ case types (correct, high_error, text_dominant, image_dominant, conflict,
 difficult, agreement), assembles multi-method explanation figures from
 Phases 2-5 artifacts, and generates structured metadata and analysis text.
 
-This module is a **pure consumer**: no model loading, no inference, no
-gradients. It reads prediction CSVs, dataset CSVs, and XAI artifact files
-(PNG images, JSON metadata) produced by Phases 2-5.
+When a model is provided, the ``XAIOrchestrator`` can generate missing
+artifacts on-demand by calling the Phase 2-5 explainer modules.  When no
+model is given, the module operates as a **pure consumer** of existing
+artifacts (backward-compatible).
 
-Usage:
+Usage (consumer-only, existing behavior):
     from xai.case_study import CaseStudyRunner
 
     runner = CaseStudyRunner(
@@ -19,11 +20,25 @@ Usage:
         image_dir='data/image',
     )
     results = runner.run()
+
+Usage (with on-demand generation):
+    runner = CaseStudyRunner(
+        exp_dir='experiments/EXP_060A_bestsequential_full_configuration',
+        dataset_csv='data/text/test.csv',
+        image_dir='data/image',
+        model=model,
+        tokenizer=tokenizer,
+        image_processor=image_processor,
+        device=device,
+        shap_background=background_tensor,
+    )
+    results = runner.run()
 """
 
 import os
 import ast
 import json
+import time
 import hashlib
 import datetime
 import logging
@@ -701,21 +716,247 @@ def generate_analysis_text(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 8. CaseStudyRunner
+# 8. XAI Orchestrator — On-Demand Artifact Generation
+# ══════════════════════════════════════════════════════════════════════════════
+
+class XAIOrchestrator:
+    """Generates missing XAI artifacts by calling Phase 2-5 explainers.
+
+    Wraps GradCAMExplainer (Phase 2), AttentionExplainer (Phase 3),
+    SHAPExplainer (Phase 4), and LIMEExplainer (Phase 5).  Explainers
+    are lazily initialized on first use to avoid heavy imports unless
+    they are actually needed.
+
+    Args:
+        model: The loaded multimodal model (e.g., CrossAttentionFusion).
+        tokenizer: HuggingFace tokenizer for the text branch.
+        image_processor: HuggingFace image processor for the vision branch.
+        device: torch.device for inference.
+        xai_dir: Base XAI directory (e.g. '{exp_dir}/xai').
+        shap_background: Optional [N, 1024] tensor of fused embeddings for
+            SHAP baseline.  If None, SHAP generation is skipped.
+    """
+
+    def __init__(
+        self,
+        model,
+        tokenizer,
+        image_processor,
+        device,
+        xai_dir: str,
+        shap_background=None,
+    ):
+        self.model = model
+        self.tokenizer = tokenizer
+        self.image_processor = image_processor
+        self.device = device
+        self.xai_dir = xai_dir
+        self.shap_background = shap_background  # [N, 1024] tensor, optional
+
+        # Lazy-init explainers (created on first use)
+        self._gradcam = None
+        self._attention = None
+        self._shap = None
+        self._lime = None
+        self._attention_patched = False
+
+    # ── Public API ──────────────────────────────────────────────────────
+
+    def ensure_artifacts(
+        self, sample: Dict[str, Any], sample_id: str,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Check and generate all missing artifacts for a sample.
+
+        For each phase (gradcam, attention, shap, lime), checks whether
+        artifacts already exist on disk.  If not, attempts to generate them
+        using the corresponding explainer.
+
+        Args:
+            sample: Sample dict from load_single_sample().
+            sample_id: Unique identifier, e.g. 'sample_0042'.
+
+        Returns:
+            Generation log dict mapping phase name to status info::
+
+                {phase: {'status': 'existing'|'generated'|'failed',
+                         'time_s': float (only if generated),
+                         'error': str (only if failed)}}
+        """
+        log: Dict[str, Dict[str, Any]] = {}
+        art = check_sample_artifacts(sample_id, self.xai_dir)
+
+        for phase in ['gradcam', 'attention', 'shap', 'lime']:
+            if art[phase]:
+                log[phase] = {'status': 'existing'}
+            else:
+                try:
+                    t0 = time.time()
+                    self._generate(phase, sample, sample_id)
+                    elapsed = round(time.time() - t0, 1)
+                    log[phase] = {'status': 'generated', 'time_s': elapsed}
+                    print(f'[XAI] Generated {phase} for {sample_id} '
+                          f'({elapsed}s)')
+                except Exception as e:
+                    log[phase] = {'status': 'failed', 'error': str(e)}
+                    print(f'[XAI] WARNING: Failed to generate {phase} '
+                          f'for {sample_id}: {e}')
+
+        return log
+
+    # ── Private: per-phase generation ───────────────────────────────────
+
+    def _generate(self, phase: str, sample: Dict[str, Any],
+                  sample_id: str) -> None:
+        """Dispatch generation to the appropriate explainer."""
+        if phase == 'gradcam':
+            self._generate_gradcam(sample, sample_id)
+        elif phase == 'attention':
+            self._generate_attention(sample, sample_id)
+        elif phase == 'shap':
+            self._generate_shap(sample, sample_id)
+        elif phase == 'lime':
+            self._generate_lime(sample, sample_id)
+        else:
+            raise ValueError(f'Unknown XAI phase: {phase}')
+
+    def _generate_gradcam(self, sample: Dict[str, Any],
+                          sample_id: str) -> None:
+        """Generate Grad-CAM artifacts (Phase 2)."""
+        if self._gradcam is None:
+            from xai.gradcam_explainer import GradCAMExplainer
+            output_dir = os.path.join(self.xai_dir, 'gradcam')
+            os.makedirs(output_dir, exist_ok=True)
+            self._gradcam = GradCAMExplainer(
+                self.model, self.device, output_dir)
+            print('[XAI] Initialized GradCAMExplainer (on-demand)')
+        self._gradcam.explain_sample(sample, sample_id)
+
+    def _generate_attention(self, sample: Dict[str, Any],
+                            sample_id: str) -> None:
+        """Generate attention artifacts (Phase 3).
+
+        Patches sdpa -> eager attention on first call so that
+        output_attentions=True works correctly.
+        """
+        if self._attention is None:
+            # Patch sdpa -> eager before first use
+            if not self._attention_patched:
+                from xai.utils import enable_eager_attention
+                enable_eager_attention(self.model)
+                self._attention_patched = True
+
+            from xai.attention_explainer import AttentionExplainer
+            output_dir = os.path.join(self.xai_dir, 'attention')
+            os.makedirs(output_dir, exist_ok=True)
+            self._attention = AttentionExplainer(
+                self.model, self.tokenizer, self.device, output_dir)
+            print('[XAI] Initialized AttentionExplainer (on-demand)')
+        self._attention.explain_sample(sample, sample_id)
+
+    def _generate_shap(self, sample: Dict[str, Any],
+                       sample_id: str) -> None:
+        """Generate SHAP artifacts (Phase 4).
+
+        Extracts a single-sample fused embedding by hooking model.head,
+        then calls SHAPExplainer.explain_sample with the background set.
+        """
+        if self.shap_background is None:
+            raise RuntimeError(
+                'SHAP background not provided -- cannot generate SHAP '
+                'artifacts on-demand without a background embedding set')
+
+        if self._shap is None:
+            from xai.shap_explainer import SHAPExplainer
+            output_dir = os.path.join(self.xai_dir, 'shap')
+            os.makedirs(output_dir, exist_ok=True)
+            self._shap = SHAPExplainer(
+                self.model, self.device, output_dir)
+            print('[XAI] Initialized SHAPExplainer (on-demand)')
+
+        # Extract fused embedding for this single sample via forward hook
+        import torch
+        captured: Dict[str, Any] = {}
+
+        def hook_fn(module, args):
+            if isinstance(args, tuple) and len(args) > 0:
+                captured['fused'] = args[0].detach()
+            elif isinstance(args, torch.Tensor):
+                captured['fused'] = args.detach()
+
+        handle = self.model.head.register_forward_pre_hook(hook_fn)
+        try:
+            with torch.no_grad():
+                self.model(
+                    input_ids=sample['input_ids'],
+                    attention_mask=sample['attention_mask'],
+                    pixel_values=sample['pixel_values'],
+                    num_images=sample.get('num_images'),
+                )
+            if 'fused' not in captured:
+                raise RuntimeError(
+                    'Forward hook did not capture fused embedding')
+            fused = captured['fused'].cpu()
+        finally:
+            handle.remove()
+
+        self._shap.explain_sample(fused[0], sample_id, self.shap_background)
+
+    def _generate_lime(self, sample: Dict[str, Any],
+                       sample_id: str) -> None:
+        """Generate LIME artifacts (Phase 5).
+
+        Uses reduced perturbation counts (500 image, 300 text) for faster
+        on-demand generation compared to full batch runs.
+        """
+        if self._lime is None:
+            from xai.lime_explainer import LIMEExplainer
+            output_dir = os.path.join(self.xai_dir, 'lime')
+            os.makedirs(output_dir, exist_ok=True)
+            self._lime = LIMEExplainer(
+                self.model, self.tokenizer, self.image_processor,
+                self.device, output_dir)
+            print('[XAI] Initialized LIMEExplainer (on-demand)')
+        self._lime.explain_sample(
+            sample, sample_id,
+            num_image_samples=500,
+            num_text_samples=300,
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 9. CaseStudyRunner
 # ══════════════════════════════════════════════════════════════════════════════
 
 class CaseStudyRunner:
     """High-level runner for Phase 6: Case Study Selection and Analysis.
+
+    Operates in two modes:
+
+    * **Consumer-only** (model=None): reads existing Phase 2-5 artifacts.
+      Missing panels show placeholders. This is the original behavior.
+    * **Orchestrator** (model provided): uses ``XAIOrchestrator`` to
+      generate missing artifacts on-demand before creating figures.
 
     Args:
         exp_dir: Path to experiment directory.
         dataset_csv: Path to dataset CSV (test.csv or val.csv).
         image_dir: Path to cached image directory.
         split: Data split name ('test' or 'val').
+        model: Optional loaded multimodal model.  If provided, enables
+            on-demand artifact generation via XAIOrchestrator.
+        tokenizer: HuggingFace tokenizer (required if model is provided).
+        image_processor: HuggingFace image processor (required if model
+            is provided).
+        device: torch.device for inference (required if model is provided).
+        shap_background: Optional [N, 1024] tensor for SHAP baselines.
+            If None, SHAP generation is skipped but other phases can
+            still be generated on-demand.
     """
 
     def __init__(self, exp_dir: str, dataset_csv: str, image_dir: str,
-                 split: str = 'test'):
+                 split: str = 'test',
+                 model=None, tokenizer=None, image_processor=None,
+                 device=None, shap_background=None):
         self.exp_dir = exp_dir
         self.dataset_csv = dataset_csv
         self.image_dir = image_dir
@@ -726,11 +967,27 @@ class CaseStudyRunner:
             exp_dir, 'test_predictions.csv' if split == 'test'
             else 'predictions.csv')
 
+        # Build orchestrator if model is available
+        if model is not None:
+            self.orchestrator: Optional[XAIOrchestrator] = XAIOrchestrator(
+                model=model,
+                tokenizer=tokenizer,
+                image_processor=image_processor,
+                device=device,
+                xai_dir=self.xai_dir,
+                shap_background=shap_background,
+            )
+            mode = 'orchestrator (on-demand generation enabled)'
+        else:
+            self.orchestrator = None
+            mode = 'consumer-only (existing artifacts)'
+
         print(f'[XAI] CaseStudyRunner initialized')
         print(f'[XAI]   Experiment : {exp_dir}')
         print(f'[XAI]   Dataset    : {dataset_csv}')
         print(f'[XAI]   Predictions: {self.pred_csv}')
         print(f'[XAI]   Output     : {self.output_dir}')
+        print(f'[XAI]   Mode       : {mode}')
 
     def run(self) -> Dict[str, Any]:
         """Run the full case study pipeline. Returns results dict."""
@@ -838,9 +1095,60 @@ class CaseStudyRunner:
             f.write('\n'.join(lines))
         print(f'[XAI]   Saved: {md_p}')
 
+    def _load_sample_for_orchestrator(
+        self, idx: int, dataset_df: pd.DataFrame,
+    ) -> Optional[Dict[str, Any]]:
+        """Load a single sample dict for on-demand XAI generation.
+
+        Uses the same data loading path as the Phase 2-5 scripts.
+        Returns None if loading fails (sample will use existing artifacts
+        or placeholders).
+        """
+        try:
+            from xai.utils import load_single_sample
+            sample = load_single_sample(
+                csv_path=self.dataset_csv,
+                idx=idx,
+                tokenizer=self.tokenizer,
+                image_processor=self.image_processor,
+                image_dir=self.image_dir,
+                device=self.device,
+            )
+            return sample
+        except ImportError:
+            print('[XAI] WARNING: xai.utils.load_single_sample not available')
+            return None
+        except Exception as e:
+            print(f'[XAI] WARNING: Failed to load sample {idx} for '
+                  f'orchestrator: {e}')
+            return None
+
+    @property
+    def tokenizer(self):
+        """Access tokenizer from orchestrator (or None)."""
+        return self.orchestrator.tokenizer if self.orchestrator else None
+
+    @property
+    def image_processor(self):
+        """Access image_processor from orchestrator (or None)."""
+        return self.orchestrator.image_processor if self.orchestrator else None
+
+    @property
+    def device(self):
+        """Access device from orchestrator (or None)."""
+        return self.orchestrator.device if self.orchestrator else None
+
     def _generate_cases(self, manifest, dataset_df, pred_df):
-        """Generate figures, metadata, analysis for each case."""
+        """Generate figures, metadata, analysis for each case.
+
+        When an orchestrator is available, attempts to generate any missing
+        XAI artifacts before creating combined figures.  Generation failures
+        are logged but do not prevent figure creation (missing panels show
+        placeholders).
+        """
         cases = []
+        generation_log: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
         for e in manifest:
             cid, ct, idx = e['case_id'], e['case_type'], e['sample_idx']
             sid = e['sample_id']
@@ -851,7 +1159,28 @@ class CaseStudyRunner:
 
             dr = dataset_df.iloc[idx]
             pr = pred_df.iloc[idx]
-            shap = load_shap_contribution(sid, os.path.join(self.xai_dir, 'shap'))
+
+            # On-demand artifact generation (if orchestrator available)
+            if self.orchestrator is not None:
+                sample = self._load_sample_for_orchestrator(idx, dataset_df)
+                if sample is not None:
+                    gen_log = self.orchestrator.ensure_artifacts(sample, sid)
+                    generation_log[cid] = gen_log
+                    generated = [p for p, v in gen_log.items()
+                                 if v['status'] == 'generated']
+                    failed = [p for p, v in gen_log.items()
+                              if v['status'] == 'failed']
+                    if generated:
+                        print(f'[XAI]   Generated: {", ".join(generated)}')
+                    if failed:
+                        print(f'[XAI]   Failed: {", ".join(failed)}')
+                else:
+                    print(f'[XAI]   Skipped on-demand generation '
+                          f'(sample load failed)')
+
+            # Re-check artifacts after potential generation
+            shap = load_shap_contribution(
+                sid, os.path.join(self.xai_dir, 'shap'))
             ainfo = check_sample_artifacts(sid, self.xai_dir)
 
             # Combined figures for each target
@@ -867,9 +1196,11 @@ class CaseStudyRunner:
                 except Exception as ex:
                     print(f'[XAI] WARNING: Figure failed for {cid}/{fn}: {ex}')
 
-            # Metadata
+            # Metadata (include generation log if available)
             meta = generate_case_metadata(
                 cid, ct, sid, dr, pr, shap, ainfo, e['reason'])
+            if cid in generation_log:
+                meta['generation_log'] = generation_log[cid]
             mp = os.path.join(case_dir, 'metadata.json')
             with open(mp, 'w', encoding='utf-8') as f:
                 json.dump(meta, f, indent=2, ensure_ascii=False)
@@ -885,7 +1216,48 @@ class CaseStudyRunner:
                 'sample_idx': idx, 'figure_paths': fig_paths,
                 'metadata_path': mp, 'analysis_path': ap,
             })
+
+        # Save generation log summary
+        if generation_log:
+            self._save_generation_log(generation_log)
+
         return cases
+
+    def _save_generation_log(
+        self, generation_log: Dict[str, Dict[str, Dict[str, Any]]],
+    ) -> str:
+        """Save on-demand generation log to JSON."""
+        # Compute summary statistics
+        total_generated = 0
+        total_failed = 0
+        total_existing = 0
+        for case_log in generation_log.values():
+            for phase_info in case_log.values():
+                status = phase_info.get('status', '')
+                if status == 'generated':
+                    total_generated += 1
+                elif status == 'failed':
+                    total_failed += 1
+                elif status == 'existing':
+                    total_existing += 1
+
+        log_data = {
+            'timestamp': datetime.datetime.now().isoformat(),
+            'summary': {
+                'total_cases': len(generation_log),
+                'artifacts_existing': total_existing,
+                'artifacts_generated': total_generated,
+                'artifacts_failed': total_failed,
+            },
+            'per_case': generation_log,
+        }
+        p = os.path.join(self.output_dir, 'generation_log.json')
+        with open(p, 'w', encoding='utf-8') as f:
+            json.dump(log_data, f, indent=2, ensure_ascii=False)
+        print(f'[XAI]   Saved generation log: {p}')
+        print(f'[XAI]   Artifacts: {total_existing} existing, '
+              f'{total_generated} generated, {total_failed} failed')
+        return p
 
     def _write_index(self, cases, manifest, pred_df):
         """Write case_study_index.csv."""
