@@ -26,7 +26,11 @@ Updated for the **token × patch CrossAttentionFusion** architecture on branch `
 
 All notebook clone cells use `xai-v3` (was `xai-v2`).
 
-### 2.2 Zero code changes to `lime_explainer.py`
+### 2.2 Sample count increased
+
+`NUM_LIME_SAMPLES` changed from 5 to 15 for consistency with Phase 2 (Grad-CAM), Phase 3 (Attention), and Phase 4 (SHAP), which all process 15 samples.
+
+### 2.3 Zero code changes to `lime_explainer.py`
 
 LIME is **architecture-agnostic** — it treats the model as a black box. The predict functions (`ImageLimePredictFn`, `TextLimePredictFn`) call `model(input_ids, attention_mask, pixel_values, num_images)` which is the **unchanged** external API of CrossAttentionFusion.
 
