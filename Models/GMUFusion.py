@@ -29,10 +29,9 @@ class GMUFusion(nn.Module):
         self.gate       = nn.Linear(text_dim + image_dim, hidden)
 
         self.head = nn.Sequential(
-            nn.ReLU(),
-            nn.Dropout(0.2),
             nn.Linear(hidden, 256),
             nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(256, num_factors)
         )
 
@@ -42,6 +41,9 @@ class GMUFusion(nn.Module):
         text_feat  = text_feat.float()
         image_feat = image_feat.float()
 
+        # Paper: h_v = tanh(W_v · x_v), h_t = tanh(W_t · x_t)  (Arevalo et al. 2017)
+        h_t = torch.tanh(self.text_proj(text_feat))
+        h_i = torch.tanh(self.image_proj(image_feat))
         g = torch.sigmoid(self.gate(torch.cat([text_feat, image_feat], dim=1)))
-        fused = g * self.text_proj(text_feat) + (1 - g) * self.image_proj(image_feat)
+        fused = g * h_t + (1 - g) * h_i
         return self.head(fused)

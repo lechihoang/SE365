@@ -43,6 +43,10 @@ class ImageModel(nn.Module):
 
         patches:    (B, P, D) - patch tokens pooled across real images
         patch_mask: (B, P) bool - True for real patch positions
+
+        Supports two timm output layouts:
+        - 4D spatial map  (B*N, D, h, w) or (B*N, h, w, D): ConvNeXt, Swin, EfficientNet
+        - 3D token sequence (B*N, num_tokens, D): ViT, SigLIP and other isotropic models
         """
         if pixel_values.dim() == 4:
             pixel_values = pixel_values.unsqueeze(1)
@@ -50,21 +54,32 @@ class ImageModel(nn.Module):
         if num_images is None:
             num_images = torch.full((B,), N, dtype=torch.long, device=pixel_values.device)
 
-        # Spatial feature map for every image slot (incl. padding images).
+        # Raw features for every image slot (incl. padding images).
         feats = self.encoder.forward_features(pixel_values.view(B * N, C, H, W))
 
-        # timm backbones are inconsistent about channel layout. The channel
-        # dimension always equals self.encoder.num_features, so locate it and
-        # normalize to channels-first (B*N, D, h, w):
-        #   Swin          -> (B*N, H, W, D)  channels-last   [D == last]
-        #   ConvNeXt      -> (B*N, D, H, W)  channels-first  [D == 1]
-        #   EfficientNet  -> (B*N, D, H, W)  channels-first  [D == 1]
         D = self.encoder.num_features
-        if feats.dim() == 4 and feats.shape[1] != D and feats.shape[-1] == D:
-            feats = feats.permute(0, 3, 1, 2).contiguous()
-        h, w = feats.shape[2], feats.shape[3]
-        P = h * w
-        feats = feats.reshape(B, N, P, D)
+
+        if feats.dim() == 3:
+            # ViT / SigLIP: output is (B*N, num_tokens, D) — token sequence.
+            # Treat each token as a "patch" position directly.
+            P = feats.shape[1]
+            feats = feats.reshape(B, N, P, D)
+        elif feats.dim() == 4:
+            # ConvNeXt / Swin / EfficientNet: spatial feature map.
+            # Normalise to channels-first (B*N, D, h, w).
+            #   Swin         -> (B*N, H, W, D) channels-last  [D == last dim]
+            #   ConvNeXt     -> (B*N, D, H, W) channels-first [D == dim 1]
+            #   EfficientNet -> (B*N, D, H, W) channels-first
+            if feats.shape[1] != D and feats.shape[-1] == D:
+                feats = feats.permute(0, 3, 1, 2).contiguous()
+            h, w = feats.shape[2], feats.shape[3]
+            P = h * w
+            feats = feats.reshape(B, N, P, D)
+        else:
+            raise ValueError(
+                f"[ImageModel.forward_features] Unexpected feature ndim={feats.dim()} "
+                f"from {type(self.encoder).__name__}. Expected 3 (ViT) or 4 (CNN)."
+            )
 
         # Average patch tokens across the REAL images of each sample
         # (ignore padding/black images). Result: (B, P, D).

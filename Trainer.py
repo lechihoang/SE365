@@ -26,7 +26,8 @@ class HomoscedasticUncertaintyLoss(nn.Module):
     def forward(self, preds, targets):
         mse = self.mse(preds, targets)
         precision = torch.exp(-self.log_vars)
-        loss = precision * mse + self.log_vars
+        # Kendall et al. 2018 (CVPR): L = Σ_i [ 0.5 * exp(-s_i) * L_i + 0.5 * s_i ]
+        loss = 0.5 * precision * mse + 0.5 * self.log_vars
         return loss.mean()
 
 

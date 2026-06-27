@@ -25,12 +25,11 @@ class FiLMFusion(nn.Module):
 
         self.film_gamma = nn.Linear(text_dim, image_dim)
         self.film_beta  = nn.Linear(text_dim, image_dim)
-        # Standard FiLM init: gamma=1, beta=0 so that at initialization
-        # modulated_image = 1 * image + 0 = image (identity modulation).
-        # The default Linear init drives gamma ~ N(0, sqrt(1/text_dim)) which
-        # near-zeroes the image branch at start and biases the comparison.
-        nn.init.ones_(self.film_gamma.weight)
-        nn.init.zeros_(self.film_gamma.bias)
+        # Identity init: gamma(text_feat) ≈ 1, beta(text_feat) ≈ 0 at start.
+        # weight=0 so the linear output = bias only; bias=1 for gamma → identity scale.
+        # (ones_(weight) would give output = sum(inputs), NOT identity.)
+        nn.init.zeros_(self.film_gamma.weight)
+        nn.init.ones_(self.film_gamma.bias)
         nn.init.zeros_(self.film_beta.weight)
         nn.init.zeros_(self.film_beta.bias)
 
