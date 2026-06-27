@@ -156,16 +156,49 @@ Whenever a patch index is mentioned visually, it is always shown highlighted on 
 
 ---
 
-## 8. Summary
+## 8. Batch Cross-Attention Visualization for 15 Samples
 
-### What was added (V3 initial)
-- `extract_cross_attention()`, `plot_cross_attention_heatmap()`, `plot_patch_importance()`, `CrossAttentionExplainer` (~250 lines)
-- 4 exports + 6 notebook cells (Steps 14b, 14c, 14d)
+### Why the previous notebook only generated full visuals for sample_0000
 
-### What was added (V3 upgrade)
-- `plot_token_to_patches()`, `plot_patch_to_tokens()`, `plot_topk_heatmap()`, `plot_bipartite_graph()` (~300 lines)
-- 4 new exports + 4 new notebook cells (Steps 14c-2, 14c-3)
-- Per-sample: ~15 additional PNG files (token overlays, patch explanations, heatmap, bipartite)
+The upgraded visualization functions (`plot_token_to_patches`, `plot_patch_to_tokens`, `plot_topk_heatmap`, `plot_bipartite_graph`) were called in standalone notebook cells using the demo sample variable (`sample`/`demo_idx`) — which is always sample_0000. The batch loop (Step 14d) called `CrossAttentionExplainer.explain_sample()` which only generated the basic outputs (raw .npz, summary JSON, patch importance).
+
+### What was changed
+
+1. **`CrossAttentionExplainer.explain_sample()`** now calls all upgraded visualization functions internally (token→patch, patch→token, top-K heatmap, bipartite graph) with per-function try/except for resilience.
+
+2. **Notebook restructured**: The standalone demo cells (14c-2, 14c-3) were replaced with a unified batch cell that processes all 15 samples. Inline display is limited to `NUM_DISPLAY_SAMPLES = 3`.
+
+3. **Validation cell** added: checks that all 15 sample folders contain the expected files and prints a pass/fail table.
+
+### How the sample loop works
+
+```python
+for batch_idx, sidx in enumerate(SAMPLE_INDICES):
+    r = ca_explainer.explain_sample(sample=s, sample_id=sid)
+    # explain_sample now generates ALL visualizations internally
+    if batch_idx < NUM_DISPLAY_SAMPLES:
+        # display inline
+    else:
+        # print summary only
+```
+
+### Files generated per sample
+
+Each `cross_attention/{sample_id}/` folder contains ~15 files:
+- `cross_attention_raw.npz`, `cross_attention_summary.json`
+- `token_patch_heatmap.png`, `patch_importance.png`, `token_patch_topk.json`
+- `topk_token_patch_heatmap.png`, `token_patch_bipartite_graph.png`
+- `top_tokens_patch_overlay_grid.png`
+- `token_overlay_1_*.png` through `token_overlay_5_*.png`
+- `patch_*_token_explanation.png` (×5 patches)
+
+### Validation strategy
+
+Expected core files are checked per sample. Missing files are reported with full paths. Each sample is marked PASS or FAIL.
+
+---
+
+## 9. Summary
 
 ### Existing outputs preserved
-All PhoBERT self-attention outputs in `attention/` and initial cross-attention outputs are unchanged.
+All PhoBERT self-attention outputs in `attention/` are unchanged. Cross-attention outputs are backward compatible.

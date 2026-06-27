@@ -1355,7 +1355,52 @@ class CrossAttentionExplainer:
             'summary': summary_path,
         }
 
-        print(f'[XAI] Cross-attention explanation complete for {sample_id}')
+        # ── Upgraded thesis-quality visualizations ───────────────────────
+        if original_images:
+            try:
+                tok2p = plot_token_to_patches(
+                    t2i, tokens, original_images[0], sample_id, sample_dir,
+                    top_k_tokens=5, top_k_patches=5, dpi=DEFAULT_DPI,
+                )
+                paths['token_to_patch_figs'] = tok2p
+            except Exception as e:
+                print(f'[XAI] WARNING: token→patch viz failed: {e}')
+
+            try:
+                p2t = plot_patch_to_tokens(
+                    i2t, tokens, original_images[0], sample_id, sample_dir,
+                    top_k_patches=5, top_k_tokens=5, dpi=DEFAULT_DPI,
+                )
+                paths['patch_to_token_figs'] = p2t
+            except Exception as e:
+                print(f'[XAI] WARNING: patch→token viz failed: {e}')
+
+        try:
+            topk_hm = plot_topk_heatmap(
+                t2i, tokens, sample_id,
+                save_path=os.path.join(sample_dir, 'topk_token_patch_heatmap.png'),
+                top_k_tokens=10, top_k_patches=10, dpi=DEFAULT_DPI,
+            )
+            paths['topk_heatmap'] = topk_hm
+        except Exception as e:
+            print(f'[XAI] WARNING: top-K heatmap failed: {e}')
+
+        try:
+            bip = plot_bipartite_graph(
+                t2i, tokens, sample_id,
+                save_path=os.path.join(sample_dir, 'token_patch_bipartite_graph.png'),
+                top_k_edges=15, dpi=DEFAULT_DPI,
+            )
+            paths['bipartite_graph'] = bip
+        except Exception as e:
+            print(f'[XAI] WARNING: bipartite graph failed: {e}')
+
+        num_files = len([f for f in os.listdir(sample_dir) if os.path.isfile(os.path.join(sample_dir, f))])
+        summary['num_generated_files'] = num_files
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            json.dump(summary, f, indent=2, ensure_ascii=False)
+
+        print(f'[XAI] Cross-attention explanation complete for {sample_id} ({num_files} files)')
 
         return {
             'sample_id': sample_id,
