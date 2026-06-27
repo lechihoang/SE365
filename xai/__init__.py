@@ -62,6 +62,10 @@ from xai.attention_explainer import (
     compute_attention_sink_ratio,
     AttentionExplainer,
     inspect_tokenization,
+    extract_cross_attention,
+    plot_cross_attention_heatmap,
+    plot_patch_importance,
+    CrossAttentionExplainer,
 )
 
 try:

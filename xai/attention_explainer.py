@@ -38,6 +38,7 @@ from xai.config import (
     NUM_TARGETS,
     PHOBERT_NUM_LAYERS,
     PHOBERT_NUM_HEADS,
+    CROSS_ATTN_HIDDEN_DIM,
     DEFAULT_DPI,
     THESIS_DPI,
     COLOR_SCHEMES,
@@ -973,3 +974,395 @@ def inspect_tokenization(
         print(f'[XAI]   ... ({len(tokens) - max_display} more tokens)')
 
     return results
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 10. Cross-Attention Extraction & Visualization
+# ══════════════════════════════════════════════════════════════════════════════
+
+def extract_cross_attention(
+    model: nn.Module,
+    sample: Dict[str, Any],
+    tokenizer,
+) -> Dict[str, Any]:
+    """Extract cross-attention weights from CrossAttentionFusion.
+
+    Calls the model's sub-modules directly to capture the attention
+    weights that ``model.forward()`` normally discards.
+
+    Args:
+        model: The full multimodal model (CrossAttentionFusion) in eval mode.
+        sample: Sample dict from ``load_single_sample()``.
+        tokenizer: HuggingFace tokenizer for decoding token IDs.
+
+    Returns:
+        Dictionary with:
+          - 't2i_attn': numpy array — text-to-image attention [T_real, P]
+          - 'i2t_attn': numpy array — image-to-text attention [P, T_real]
+          - 'tokens': list of decoded token strings (trimmed, no padding)
+          - 'seq_len': int — actual text token count
+          - 'num_patches': int — number of image patches (e.g. 49)
+    """
+    model.eval()
+    with torch.no_grad():
+        _, _, text_tokens, text_pad = model.text_model(
+            sample['input_ids'], sample['attention_mask'], return_tokens=True,
+        )
+        image_patches, patch_mask = model.image_model.forward_features(
+            sample['pixel_values'], num_images=sample.get('num_images'),
+        )
+
+        t = model.text_proj(text_tokens.float())
+        i = model.image_proj(image_patches.float())
+
+        t_kpm = text_pad
+        i_kpm = ~patch_mask
+
+        _, t2i_attn = model.cross_attn_t2i(
+            query=t, key=i, value=i, key_padding_mask=i_kpm,
+        )
+        _, i2t_attn = model.cross_attn_i2t(
+            query=i, key=t, value=t, key_padding_mask=t_kpm,
+        )
+
+    # Trim to real token length (remove padding)
+    mask = sample['attention_mask'][0]
+    seq_len = int(mask.sum().item())
+    token_ids = sample['input_ids'][0, :seq_len].cpu().tolist()
+    tokens = tokenizer.convert_ids_to_tokens(token_ids)
+
+    # t2i_attn: [B, T, P] (head-averaged) or [B, num_heads, T, P]
+    t2i = t2i_attn[0].cpu().numpy()  # drop batch dim
+    i2t = i2t_attn[0].cpu().numpy()
+
+    # If head-averaged (2-D after batch drop), keep as-is; trim T to real tokens
+    if t2i.ndim == 2:
+        t2i = t2i[:seq_len, :]      # [T_real, P]
+        i2t = i2t[:, :seq_len]      # [P, T_real]
+    elif t2i.ndim == 3:
+        t2i = t2i[:, :seq_len, :]   # [H, T_real, P]
+        i2t = i2t[:, :, :seq_len]   # [H, P, T_real]
+        # Average over heads for primary visualizations
+        t2i = t2i.mean(axis=0)      # [T_real, P]
+        i2t = i2t.mean(axis=0)      # [P, T_real]
+
+    num_patches = t2i.shape[1]
+
+    print(f'[XAI] Extracted cross-attention: T={seq_len}, P={num_patches}')
+
+    return {
+        't2i_attn': t2i.astype(np.float32),
+        'i2t_attn': i2t.astype(np.float32),
+        'tokens': tokens,
+        'seq_len': seq_len,
+        'num_patches': num_patches,
+    }
+
+
+def plot_cross_attention_heatmap(
+    attn_matrix: np.ndarray,
+    tokens: List[str],
+    title: str = 'Cross-Attention: Text → Image',
+    save_path: Optional[str] = None,
+    dpi: int = DEFAULT_DPI,
+    max_tokens: int = 60,
+) -> Any:
+    """Plot cross-attention matrix as a heatmap (tokens × patches).
+
+    Args:
+        attn_matrix: Attention weights [T, P].
+        tokens: List of token strings (length T).
+        title: Plot title.
+        save_path: If provided, save figure to this path.
+        dpi: Figure resolution.
+        max_tokens: Skip heatmap if token count exceeds this.
+
+    Returns:
+        matplotlib Figure object, or None if skipped.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib
+
+    T, P = attn_matrix.shape
+    if T > max_tokens:
+        print(f'[XAI] Skipping cross-attention heatmap ({T} tokens > {max_tokens} limit)')
+        return None
+
+    matplotlib.rcParams['font.family'] = 'DejaVu Sans'
+
+    H = W = int(np.sqrt(P))
+    patch_labels = [f'{r},{c}' for r in range(H) for c in range(W)] if H * W == P else [str(j) for j in range(P)]
+
+    fig_w = max(8, P * 0.25)
+    fig_h = max(6, T * 0.3)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+
+    try:
+        import seaborn as sns
+        sns.heatmap(
+            attn_matrix, xticklabels=patch_labels, yticklabels=tokens,
+            cmap='viridis', ax=ax, cbar_kws={'shrink': 0.6},
+        )
+    except ImportError:
+        im = ax.imshow(attn_matrix, aspect='auto', cmap='viridis')
+        ax.set_xticks(range(P))
+        ax.set_xticklabels(patch_labels, rotation=90, fontsize=5)
+        ax.set_yticks(range(T))
+        ax.set_yticklabels(tokens, fontsize=6)
+        plt.colorbar(im, ax=ax, shrink=0.6)
+
+    ax.set_title(title, fontsize=12, fontweight='bold', pad=10)
+    ax.set_xlabel(f'Image Patches ({H}×{W})', fontsize=10)
+    ax.set_ylabel('Text Tokens', fontsize=10)
+    ax.tick_params(axis='x', labelsize=5, rotation=90)
+    ax.tick_params(axis='y', labelsize=6)
+    fig.tight_layout()
+
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        fig.savefig(save_path, dpi=dpi, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
+        print(f'[XAI] Saved cross-attention heatmap: {save_path}')
+
+    return fig
+
+
+def plot_patch_importance(
+    i2t_attn: np.ndarray,
+    original_image,
+    title: str = 'Patch Importance (from Cross-Attention)',
+    save_path: Optional[str] = None,
+    dpi: int = DEFAULT_DPI,
+) -> Any:
+    """Overlay patch-level importance on the original image.
+
+    Importance = mean attention each patch receives from all text tokens.
+
+    Args:
+        i2t_attn: Image-to-text attention [P, T] — each patch's attention to tokens.
+        original_image: PIL Image (original review image).
+        title: Plot title.
+        save_path: If provided, save figure.
+        dpi: Figure resolution.
+
+    Returns:
+        matplotlib Figure object.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib
+    from PIL import Image
+
+    matplotlib.rcParams['font.family'] = 'DejaVu Sans'
+
+    P = i2t_attn.shape[0]
+    H = W = int(np.sqrt(P))
+    if H * W != P:
+        print(f'[XAI] WARNING: P={P} is not a perfect square, skipping patch overlay')
+        return None
+
+    # Importance per patch = sum of attention that patch distributes to text tokens
+    patch_importance = i2t_attn.sum(axis=1)  # [P]
+    patch_map = patch_importance.reshape(H, W)
+
+    # Normalize to [0, 1]
+    pmin, pmax = patch_map.min(), patch_map.max()
+    if pmax - pmin > 1e-8:
+        patch_map = (patch_map - pmin) / (pmax - pmin)
+    else:
+        patch_map = np.zeros_like(patch_map)
+
+    img_resized = original_image.convert('RGB').resize((224, 224), Image.BILINEAR)
+    img_np = np.array(img_resized, dtype=np.float32) / 255.0
+
+    # Upsample patch_map to image size
+    from PIL import Image as PILImage
+    patch_pil = PILImage.fromarray((patch_map * 255).astype(np.uint8), mode='L')
+    patch_upsampled = np.array(
+        patch_pil.resize((224, 224), PILImage.BILINEAR), dtype=np.float32,
+    ) / 255.0
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+    axes[0].imshow(img_np)
+    axes[0].set_title('Original Image', fontsize=11)
+    axes[0].axis('off')
+
+    axes[1].imshow(patch_map, cmap='hot', interpolation='nearest')
+    axes[1].set_title(f'Patch Importance ({H}×{W})', fontsize=11)
+    axes[1].axis('off')
+
+    overlay = 0.5 * img_np + 0.5 * plt.cm.hot(patch_upsampled)[:, :, :3]
+    overlay = np.clip(overlay, 0, 1)
+    axes[2].imshow(overlay)
+    axes[2].set_title('Overlay on Image', fontsize=11)
+    axes[2].axis('off')
+
+    fig.suptitle(title, fontsize=13, fontweight='bold', y=1.02)
+    fig.tight_layout()
+
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        fig.savefig(save_path, dpi=dpi, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
+        print(f'[XAI] Saved patch importance: {save_path}')
+
+    return fig
+
+
+class CrossAttentionExplainer:
+    """Generates cross-attention visualizations between text tokens and image patches.
+
+    Extracts the attention weights from ``cross_attn_t2i`` and ``cross_attn_i2t``
+    in CrossAttentionFusion and produces:
+      - Token × Patch heatmap
+      - Patch importance overlay on original image
+      - Top-K token-patch pairs
+      - Raw attention matrices (.npy)
+      - Summary statistics (JSON)
+
+    Args:
+        model: The full multimodal model (CrossAttentionFusion), in eval mode.
+        tokenizer: HuggingFace tokenizer for PhoBERT.
+        device: Torch device.
+        output_dir: Base directory for saving artifacts.
+    """
+
+    def __init__(self, model: nn.Module, tokenizer, device: torch.device,
+                 output_dir: str = './xai_output/cross_attention'):
+        self.model = model
+        self.tokenizer = tokenizer
+        self.device = device
+        self.output_dir = output_dir
+        os.makedirs(output_dir, exist_ok=True)
+        print(f'[XAI] CrossAttentionExplainer initialized. Output dir: {output_dir}')
+
+    def explain_sample(self, sample: Dict[str, Any], sample_id: str,
+                       top_k: int = 20) -> Dict[str, Any]:
+        """Generate cross-attention explanation for a single sample.
+
+        Args:
+            sample: Sample dict from ``load_single_sample()``.
+            sample_id: Unique identifier (e.g., 'sample_0042').
+            top_k: Number of top token-patch pairs to extract.
+
+        Returns:
+            Dictionary with all results and artifact paths.
+        """
+        sample_dir = os.path.join(self.output_dir, sample_id)
+        os.makedirs(sample_dir, exist_ok=True)
+
+        print(f'[XAI] Cross-attention explanation for {sample_id}')
+
+        # ── Extract cross-attention ──────────────────────────────────────
+        ca = extract_cross_attention(self.model, sample, self.tokenizer)
+        t2i = ca['t2i_attn']  # [T_real, P]
+        i2t = ca['i2t_attn']  # [P, T_real]
+        tokens = ca['tokens']
+        seq_len = ca['seq_len']
+        num_patches = ca['num_patches']
+
+        # ── Save raw attention matrices ──────────────────────────────────
+        raw_path = os.path.join(sample_dir, 'cross_attention_raw.npz')
+        np.savez(raw_path, t2i_attn=t2i, i2t_attn=i2t)
+        print(f'[XAI] Saved: {raw_path}')
+
+        # ── Token × Patch heatmap ────────────────────────────────────────
+        heatmap_path = os.path.join(sample_dir, 'token_patch_heatmap.png')
+        plot_cross_attention_heatmap(
+            t2i, tokens,
+            title=f'{sample_id}: Text→Image Cross-Attention',
+            save_path=heatmap_path, dpi=DEFAULT_DPI,
+        )
+
+        # ── Patch importance overlay ─────────────────────────────────────
+        overlay_path = os.path.join(sample_dir, 'patch_importance.png')
+        original_images = sample.get('loaded_images', [])
+        if original_images:
+            plot_patch_importance(
+                i2t, original_images[0],
+                title=f'{sample_id}: Patch Importance',
+                save_path=overlay_path, dpi=DEFAULT_DPI,
+            )
+        else:
+            overlay_path = None
+
+        # ── Top-K token-patch pairs ──────────────────────────────────────
+        # Flatten t2i to find highest attention pairs
+        flat = t2i.flatten()
+        topk_indices = np.argsort(flat)[::-1][:top_k]
+        topk_pairs = []
+        for idx in topk_indices:
+            t_idx = int(idx // num_patches)
+            p_idx = int(idx % num_patches)
+            H_p = W_p = int(np.sqrt(num_patches))
+            topk_pairs.append({
+                'rank': len(topk_pairs) + 1,
+                'token_idx': t_idx,
+                'token': tokens[t_idx] if t_idx < len(tokens) else '<PAD>',
+                'patch_idx': p_idx,
+                'patch_row': p_idx // W_p if H_p * W_p == num_patches else -1,
+                'patch_col': p_idx % W_p if H_p * W_p == num_patches else -1,
+                'attention': float(flat[idx]),
+            })
+
+        topk_path = os.path.join(sample_dir, 'token_patch_topk.json')
+        with open(topk_path, 'w', encoding='utf-8') as f:
+            json.dump(topk_pairs, f, indent=2, ensure_ascii=False)
+        print(f'[XAI] Saved: {topk_path}')
+
+        # ── Summary statistics ───────────────────────────────────────────
+        # Per-token importance = how much each token attends to image overall
+        token_importance = t2i.sum(axis=1)  # [T_real]
+        # Per-patch importance = how much each patch receives from text
+        patch_importance = t2i.sum(axis=0)  # [P]
+
+        # Entropy per token (how spread is attention across patches)
+        eps = 1e-10
+        t2i_safe = np.clip(t2i, eps, None)
+        token_entropy = -(t2i_safe * np.log2(t2i_safe)).sum(axis=1)  # [T_real]
+
+        summary = {
+            'sample_id': sample_id,
+            'seq_len': seq_len,
+            'num_patches': num_patches,
+            'mean_attention': float(t2i.mean()),
+            'max_attention': float(t2i.max()),
+            'min_attention': float(t2i.min()),
+            'mean_token_entropy': float(token_entropy.mean()),
+            'top_5_tokens': [
+                {'token': tokens[i], 'importance': float(token_importance[i])}
+                for i in np.argsort(token_importance)[::-1][:5]
+                if i < len(tokens)
+            ],
+            'top_5_patches': [
+                {'patch_idx': int(i), 'importance': float(patch_importance[i])}
+                for i in np.argsort(patch_importance)[::-1][:5]
+            ],
+            'timestamp': datetime.datetime.now().isoformat(),
+        }
+
+        summary_path = os.path.join(sample_dir, 'cross_attention_summary.json')
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            json.dump(summary, f, indent=2, ensure_ascii=False)
+        print(f'[XAI] Saved: {summary_path}')
+
+        paths = {
+            'sample_dir': sample_dir,
+            'raw_attention': raw_path,
+            'heatmap': heatmap_path,
+            'patch_importance': overlay_path,
+            'topk_pairs': topk_path,
+            'summary': summary_path,
+        }
+
+        print(f'[XAI] Cross-attention explanation complete for {sample_id}')
+
+        return {
+            'sample_id': sample_id,
+            't2i_attn': t2i,
+            'i2t_attn': i2t,
+            'tokens': tokens,
+            'topk_pairs': topk_pairs,
+            'summary': summary,
+            'paths': paths,
+        }

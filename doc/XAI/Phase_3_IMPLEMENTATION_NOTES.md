@@ -1,81 +1,103 @@
-# Phase 3: Attention Visualization — Implementation Notes (V2)
+# Phase 3: Attention Visualization — Implementation Notes (V3)
 
-Updated for the **token × patch CrossAttentionFusion** architecture on branch `xai-v3`.
-
----
-
-## 1. Proposal Compliance
-
-| Item | Status | Notes |
-|---|---|---|
-| `xai/attention_explainer.py` | Updated | Module docstring and metadata `cross_attention_note` updated |
-| `extract_phobert_attention()` | Unchanged | Bypasses TextModel.forward(), calls encoder directly |
-| `aggregate_attention()` — 3 strategies | Unchanged | last_layer_mean, last_4_layers_mean, attention_rollout |
-| `cls_token_importance()` | Unchanged | Extracts CLS row, excludes special tokens |
-| `merge_subword_attention()` | Unchanged | Handles both @@ and space-prefix conventions |
-| `plot_attention_heatmap()` | Unchanged | seaborn/matplotlib with Vietnamese support |
-| `plot_cls_importance_bar()` | Unchanged | Horizontal bar chart, top-k, sorted |
-| `compute_attention_sink_ratio()` | Unchanged | Warns if >0.3 |
-| `AttentionExplainer` class | Updated | Metadata cross_attention_note reflects new architecture |
-| `inspect_tokenization()` | Unchanged | Debugging utility for PhoBERT tokenization |
-| Cross-attention verification | **Rewritten** | Notebook Step 14 now verifies token×patch weights are NOT trivial |
-| Phase 3 notebook | **Updated V2** | Branch → `xai-v3`, header updated, Step 14 rewritten |
+Updated to include **cross-attention visualization** between text tokens and image patches.
 
 ---
 
-## 2. Differences from V1
+## 1. Audit Result
 
-### 2.1 Module docstring updated
+### A. Does CrossAttentionFusion expose cross-attention weights?
 
-**V1:** "Cross-attention projects to single vectors [B, 1, 512]... trivially 1.0... completely uninformative"
-**V2:** "Cross-attention now uses token-level × patch-level... informative and visualizable"
+**Yes, but they are discarded.** In `CrossAttentionFusion.forward()` (lines 67-68):
+```python
+t_out, _ = self.cross_attn_t2i(query=t, key=i, value=i, key_padding_mask=i_kpm)
+i_out, _ = self.cross_attn_i2t(query=i, key=t, value=t, key_padding_mask=t_kpm)
+```
+The `_` discards the attention weights. `nn.MultiheadAttention` returns weights as the second value by default (`need_weights=True`), so the weights are computed but not stored.
 
-### 2.2 Metadata field updated
+### B. Was cross-attention visualization implemented before?
 
-**V1:** `cross_attention_note: "Cross-attention weights are trivially 1.0 (Q=[B,1,512], K=[B,1,512])..."`
-**V2:** `cross_attention_note: "Cross-attention now uses token×patch attention (Q=[B,T,512], K=[B,P,512])..."`
+**No.** The Phase 3 notebook Step 14 extracted cross-attention weights in a standalone verification cell but produced no saved artifacts or visualizations. The `AttentionExplainer` class generated only PhoBERT self-attention outputs.
 
-### 2.3 Notebook Step 14 rewritten
+### C. Are weights recoverable without architecture changes?
 
-**V1:** Manually replicated old architecture with `unsqueeze(1)`, proved trivially 1.0, asserted `all_ones = True`
-**V2:** Uses new APIs (`return_tokens=True`, `forward_features()`), extracts real T×P attention weights, verifies NOT trivially 1.0
-
-### 2.4 Final summary check updated
-
-**V1:** Check `'Cross-attn trivial' → all_ones`
-**V2:** Check `'Cross-attn informative' → not all_ones`
+**Yes.** The weights can be extracted by calling `model.cross_attn_t2i(...)` directly with the projected features and capturing the second return value. No architecture modification is needed.
 
 ---
 
-## 3. Cross-Attention V3 Compatibility
+## 2. What Was Implemented
 
-### What changed
+### New classes and functions in `xai/attention_explainer.py`
 
-The cross-attention is now token × patch, producing `[B, 8, T, P]` attention weights (or `[B, T, P]` head-averaged). These weights are real and informative.
+| Item | Description |
+|---|---|
+| `extract_cross_attention()` | Extracts T×P cross-attention weights from both `cross_attn_t2i` and `cross_attn_i2t`, trims padding, returns head-averaged matrices |
+| `plot_cross_attention_heatmap()` | Renders token × patch heatmap with patch grid labels |
+| `plot_patch_importance()` | Overlays patch-level importance on the original image (3-panel: original, patch map, overlay) |
+| `CrossAttentionExplainer` | High-level orchestrator generating all cross-attention artifacts per sample |
 
-### What did NOT change
+### New exports in `xai/__init__.py`
 
-- PhoBERT self-attention extraction: completely unchanged (encoder is called directly)
-- Attention aggregation strategies: all 3 strategies work identically
-- CLS importance: identical (CLS token is at position 0 regardless of architecture)
-- Subword merging: identical (depends on tokenizer, not architecture)
-- Attention sink detection: identical
+```python
+extract_cross_attention, plot_cross_attention_heatmap,
+plot_patch_importance, CrossAttentionExplainer
+```
 
-### Why `attention_explainer.py` needed minimal changes
+### New notebook cells (Steps 14b, 14c, 14d)
 
-PhoBERT self-attention is computed **inside the text encoder**, before any fusion happens. The architecture redesign only changed the fusion layer (cross-attention), not the text encoder internals. Therefore all attention extraction, aggregation, and visualization code works identically.
+| Cell | Description |
+|---|---|
+| Step 14b | Extract cross-attention, validate shapes/sums, generate T×P heatmap |
+| Step 14c | Patch importance overlay on original image, top-10 token-patch pairs, entropy statistics |
+| Step 14d | Batch processing: generate cross-attention artifacts for all 15 samples |
+
+### Per-sample artifacts generated
+
+```
+cross_attention/{sample_id}/
+├── cross_attention_raw.npz        # t2i_attn [T, P] + i2t_attn [P, T]
+├── token_patch_heatmap.png        # Text tokens × Image patches heatmap
+├── patch_importance.png           # 3-panel: original + patch map + overlay
+├── token_patch_topk.json          # Top-20 token-patch pairs with scores
+└── cross_attention_summary.json   # Statistics: mean/max/entropy, top-5 tokens, top-5 patches
+```
+
+---
+
+## 3. Architecture — No Changes Required
+
+The cross-attention weights are extracted by calling the sub-modules directly:
+
+```python
+with torch.no_grad():
+    _, _, text_tokens, text_pad = model.text_model(..., return_tokens=True)
+    image_patches, patch_mask = model.image_model.forward_features(...)
+    t = model.text_proj(text_tokens.float())
+    i = model.image_proj(image_patches.float())
+    _, t2i_attn = model.cross_attn_t2i(query=t, key=i, value=i, key_padding_mask=~patch_mask)
+```
+
+This bypasses `model.forward()` which discards the weights. The computation is identical — same projections, same attention modules, same key_padding_masks. Zero architecture modification.
 
 ---
 
 ## 4. Engineering Decisions
 
-### 4.1 Cross-attention visualization deferred
+### 4.1 Head averaging
 
-V13 in Phase 1 and Step 14 in Phase 3 both verify that cross-attention weights are extractable and non-trivial. Actual cross-attention visualization (e.g., "which image patch does the word 'ngon' attend to?") is a significant new feature deferred to a future Phase 3 update.
+`nn.MultiheadAttention` returns `[B, T, P]` (averaged over heads) by default. The implementation handles both averaged and per-head formats, falling back to head averaging for visualization.
 
-### 4.2 No code duplication with Phase 1
+### 4.2 Padding trimming
 
-Phase 1 V13 and Phase 3 Step 14 both extract cross-attention weights using the same pattern. This is intentional — Phase 1 verifies infrastructure, Phase 3 uses it for analysis.
+Cross-attention matrices are trimmed to `[T_real, P]` where `T_real` = actual tokens (excluding padding). Patches are not trimmed because `patch_mask` is always all-True in the current architecture.
+
+### 4.3 Patch importance via i2t_attn
+
+Patch importance is computed from `i2t_attn` (image→text direction): `importance[p] = sum(i2t_attn[p, :])`. This measures how much each patch distributes attention to text tokens — patches that strongly attend to content words are more "engaged."
+
+### 4.4 Backward compatibility
+
+All existing PhoBERT self-attention outputs are preserved unchanged. Cross-attention outputs go to a separate `cross_attention/` directory. No existing artifact format or API was modified.
 
 ---
 
@@ -83,28 +105,32 @@ Phase 1 V13 and Phase 3 Step 14 both extract cross-attention weights using the s
 
 | Phase | Status | Notes |
 |---|---|---|
-| Phase 6 (Case Study) | Compatible | Artifact format unchanged |
-| Phase 7 (Report) | Compatible | Metadata format unchanged |
-| Phase 8 (Thesis Viz) | Compatible | Figure format unchanged |
+| Phase 6 (Case Study) | Compatible | New artifacts in `cross_attention/` can be loaded for combined figures |
+| Phase 7 (Report) | Compatible | Summary JSON provides statistics for report tables |
+| Phase 8 (Thesis Viz) | Compatible | Heatmap and overlay PNGs are thesis-quality (configurable DPI) |
 
 ---
 
 ## 6. Remaining Limitations
 
-1. **Target-agnostic:** PhoBERT self-attention is the same for all 5 targets.
-2. **Attention ≠ explanation:** Attention shows information flow, not causal importance.
-3. **Cross-attention visualization not yet implemented:** Verified extractable but not visualized.
-4. **Subword merging heuristic:** Rule-based, may have edge cases.
+1. **Head averaging:** Individual head patterns are lost in the averaged view. Per-head visualization could reveal specialized heads.
+2. **Not target-specific:** Cross-attention is computed once during the forward pass, not per-target. SHAP (Phase 4) provides target-specific modality analysis.
+3. **Patch labels are grid indices:** `(row, col)` labels don't carry semantic meaning. Combining with Grad-CAM overlays (Phase 6) provides richer interpretation.
+4. **Long sequences:** The T×P heatmap is skipped for sequences > 60 tokens. The summary JSON and top-K pairs are always generated.
 
 ---
 
 ## 7. Summary
 
-### V2 changes
-- `attention_explainer.py`: docstring + metadata updated (2 lines)
-- Notebook: header updated (V2, architecture note, branch `xai-v3`)
-- Notebook: Step 14 rewritten (cross-attention verification using new APIs)
-- Notebook: Final summary check inverted (`informative` instead of `trivial`)
+### What was missing
+Cross-attention visualization was completely absent. Only a verification cell existed (proving weights are non-trivial) with no saved artifacts.
 
-### Ready for use?
-**Yes.** PhoBERT self-attention is architecture-independent. Cross-attention weights are verified extractable for future visualization.
+### What was added
+- 3 new functions + 1 new class in `attention_explainer.py` (~250 lines)
+- 4 new exports in `__init__.py`
+- 6 new notebook cells (Steps 14b, 14c, 14d + markdown headers)
+- Updated final summary cell with 13 checks (was 9)
+- Per-sample output: 5 artifact files in `cross_attention/{sample_id}/`
+
+### Existing outputs preserved
+All PhoBERT self-attention outputs in `attention/` are completely unchanged.
