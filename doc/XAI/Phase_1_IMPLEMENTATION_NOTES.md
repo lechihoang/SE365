@@ -1,7 +1,7 @@
-# Phase 1: Implementation Notes
+# Phase 1: Implementation Notes (V2)
 
-This document summarizes the implementation decisions for Phase 1 (XAI Infrastructure).
-It is intended for future maintenance, reproducibility, and Phase 2–8 development.
+This document summarizes the V2 implementation of Phase 1 (XAI Infrastructure),
+updated for the **token × patch CrossAttentionFusion** architecture on branch `xai-v3`.
 
 ---
 
@@ -9,141 +9,155 @@ It is intended for future maintenance, reproducibility, and Phase 2–8 developm
 
 | Item | Status | Notes |
 |---|---|---|
-| `xai/__init__.py` | ✔ Exact | Exports all public API as specified |
-| `xai/config.py` | ✔ Exact | All constants defined: TARGET_NAMES, TARGET_INDICES, FACTOR_NAMES, DISPLAY_NAMES, LABEL_COLS, SCORE_RANGE, COLOR_SCHEMES, dimension constants |
-| `get_device()` | ✔ Exact | Matches main.py lines 51-54 |
-| `set_seed()` | ✔ Exact | Matches main.py lines 24-34 |
-| `get_tokenizer()` | ✔ Exact | Direct AutoTokenizer wrapper |
-| `get_image_processor()` | ✔ Exact | Full fallback chain from main.py lines 61-69 with private `_TimmProcessor` |
-| `load_model()` | ✔ Exact | Config-driven reconstruction matching test.py lines 59-97 |
-| `load_single_sample()` | ✔ Exact | Replicates src/dataset.py MultimodalDataset.__getitem__() |
-| `get_prediction()` | ✔ Exact | Matches test.py lines 105-121 |
-| `save_figure()` | ✔ Exact | Consistent DPI, bbox_inches, facecolor |
-| `save_raw_values()` | ✔ Exact | Supports JSON, NPY, NPZ, CSV |
-| Verification notebook | ✔ Exact | 10 verification checks (V1–V10) as specified |
-| `_NumpyEncoder` | ✔ Added | Custom JSON encoder for numpy/torch types |
-| `get_metadata()` | ✔ Added | Utility for consistent artifact metadata |
+| `xai/__init__.py` | Unchanged | Exports all public API as specified |
+| `xai/config.py` | Unchanged | All constants correct for new architecture (dims unchanged) |
+| `xai/utils.py` | Unchanged | All functions compatible with new architecture |
+| `get_device()` | Unchanged | |
+| `set_seed()` | Unchanged | |
+| `get_tokenizer()` | Unchanged | |
+| `get_image_processor()` | Unchanged | |
+| `load_model()` | Unchanged | Config-driven reconstruction works with new checkpoint |
+| `load_single_sample()` | Unchanged | Preprocessing is architecture-independent |
+| `get_prediction()` | Unchanged | `model.forward()` API unchanged |
+| `save_figure()` | Unchanged | |
+| `save_raw_values()` | Unchanged | |
+| Verification notebook | **Updated V2** | 13 checks (V1-V13), was 10 (V1-V10) |
 
 ---
 
-## 2. Proposal Deviations
+## 2. Differences from V1
 
-### 2.1 Artifact output directory
+### 2.1 V10 Forward-Pass Consistency — Rewritten
 
-- **Proposal:** Save artifacts to `experiments/EXP_XXX/xai/infrastructure/`
-- **Actual:** Save to `{DRIVE_ROOT}/xai/phase1/`
-- **Why:** The existing codebase stores experiment outputs on Google Drive under `{DRIVE_ROOT}/experiments/`. However, XAI artifacts span multiple experiments and phases. Following the existing notebook pattern (e.g., `demo_single_sample_exp060A.ipynb` saves to `{EXP_DIR}/demo_single_sample/`), XAI outputs are stored under `{DRIVE_ROOT}/xai/phase{N}/` for phase-level artifacts and `{DRIVE_ROOT}/xai/{method}/` for method-level artifacts. This avoids polluting experiment directories with post-hoc analysis artifacts.
-- **Compatibility:** The notebook's `XAI_OUT_DIR` variable can be changed by the user in the configuration cell.
+**V1:** Manually replicated the old CrossAttentionFusion forward pass:
+```python
+t = model.text_proj(tf).unsqueeze(1)          # [B, 1, 512]
+i = model.image_proj(imf).unsqueeze(1)        # [B, 1, 512]
+t_out, _ = model.cross_attn_t2i(query=t, key=i, value=i)
+fused = torch.cat([t_out.squeeze(1), i_out.squeeze(1)], dim=1)
+```
 
-### 2.2 `_TimmProcessor` as private class
+**V2:** Replicates the new token × patch architecture:
+```python
+_, _, text_tokens, text_pad = model.text_model(..., return_tokens=True)
+image_patches, patch_mask = model.image_model.forward_features(...)
+t = model.text_proj(text_tokens)              # [B, T, 512]
+i = model.image_proj(image_patches)           # [B, P, 512]
+t_out, _ = model.cross_attn_t2i(query=t, key=i, value=i, key_padding_mask=i_kpm)
+# + masked mean pooling
+fused = torch.cat([t_pooled, i_pooled], dim=1)
+```
 
-- **Proposal:** References `TimmProcessor` class replication
-- **Actual:** Named `_TimmProcessor` (underscore prefix)
-- **Why:** Python convention for internal-use-only classes. It should not be imported directly by other modules; `get_image_processor()` is the public API.
+### 2.2 Three New Verification Checks Added
 
-### 2.3 `get_metadata()` added beyond proposal
-
-- **Proposal:** Not explicitly specified
-- **Actual:** Added as a utility function
-- **Why:** The implementation requirements mandate metadata in every artifact (experiment_id, timestamp, git commit, device, seed, model names). A shared utility eliminates boilerplate in future phases.
-
----
-
-## 3. Engineering Decisions
-
-### 3.1 No modification to existing code
-Zero lines changed in Models/, src/, main.py, test.py, Config.py, or Trainer.py. All XAI functionality is in the new `xai/` package.
-
-### 3.2 Private `_load_config()` function
-Config loading logic (yaml → json → checkpoint args) is extracted into a private function reused by `load_model()`. This mirrors how `test.py` handles config but adds yaml support.
-
-### 3.3 `module.` prefix stripping
-The `load_model()` function handles DataParallel-wrapped checkpoints by stripping `module.` prefixes, with a warning. This is defensive — current checkpoints don't use DataParallel, but the safeguard costs nothing.
-
-### 3.4 Image loading without network
-`_load_image_from_cache()` only reads from local cache (MD5 hash lookup), never downloads from URLs. This is safer for XAI analysis (deterministic, no network dependency) and matches the Colab workflow where `data.zip` is extracted first.
-
-### 3.5 Notebook follows exact Colab patterns
-Steps 1-3 (Drive mount, clone, data extraction) match `EXP_060A_bestsequential_full_configuration.ipynb` exactly. Step 4 configuration cell uses the same `DRIVE_ROOT`/`EXP_ID` pattern.
-
----
-
-## 4. Assumptions
-
-| Assumption | How to verify |
+| Check | What it verifies |
 |---|---|
-| Checkpoint is at `{EXP_DIR}/best_model_train_fusion.pth` | `os.path.isfile()` |
-| Checkpoint contains `'model_state_dict'` key | Check `'model_state_dict' in ckpt` |
-| Config is at `{EXP_DIR}/config.yaml` or `config.json` | `os.path.isfile()` with fallback |
-| Data CSVs have columns: `comment_clean`, `image_url`, `food_score`, ... | Pandas read + column check |
-| Image cache exists at `./data/image/` with MD5-hashed filenames | `os.path.exists()` per image |
-| PhoBERT supports `output_attentions=True` | Verified in V8 |
-| Swin-B produces spatial feature maps before pooling | Verified in V9 |
-| `max_length=256` (from Config.py default) | Read from experiment config |
-| `max_images=4` (from dataset.py) | Hardcoded as constant |
+| **V11** | `TextModel.forward(return_tokens=True)` returns 4 values: preds, features, tokens `[B, T, 768]`, pad_mask `[B, T]` |
+| **V12** | `ImageModel.forward_features()` returns patches `[B, P, D]` and patch_mask `[B, P]` |
+| **V13** | Cross-attention weights are `[B, T, P]` (or `[B, 8, T, P]`), NOT trivially 1.0 |
+
+### 2.3 Branch Updated
+
+All notebook clone cells use `xai-v3` (was `visualization` in V1).
+
+### 2.4 Notebook Header Updated
+
+Title now says "V2", table shows "token × patch" fusion, check count is 13.
 
 ---
 
-## 5. Compatibility with Existing Codebase
+## 3. Cross-Attention V3 Compatibility
 
-- **No imports from main.py or test.py:** These files use argparse, which fails when imported as modules. Instead, their logic is replicated in `xai/utils.py`.
-- **Model imports:** `from Models.TextModel import TextModel` etc. work because the project root is on `sys.path`.
-- **Dataset compatibility:** `load_single_sample()` replicates `MultimodalDataset.__getitem__()` line-by-line to ensure identical preprocessing.
-- **Checkpoint format:** Handles both `{'model_state_dict': ...}` (Trainer.py format) and raw state_dict.
+### What changed in the architecture
 
----
+| Component | Old | New |
+|---|---|---|
+| Cross-attention inputs | `[B, 1, 512]` (single vector) | `[B, T, 512]` × `[B, P, 512]` (token × patch) |
+| Attention weights | `[B, 8, 1, 1]` = trivially 1.0 | `[B, 8, T, P]` = real attention |
+| Pooling | `squeeze(1)` | `masked_mean` with padding masks |
+| TextModel API | `forward()` returns 2 values | `forward(return_tokens=True)` returns 4 values |
+| ImageModel API | Only `forward()` | New `forward_features()` for patch tokens |
 
-## 6. Reusable Components for Future Phases
+### What did NOT change
 
-| Component | Used by |
-|---|---|
-| `load_model()` | All phases (2-8) |
-| `load_single_sample()` | Phases 2, 3, 5, 6 |
-| `get_prediction()` | Phases 2, 5, 6 |
-| `get_tokenizer()` | Phases 3, 5 |
-| `get_image_processor()` | Phases 2, 5 |
-| `save_figure()` | Phases 2, 3, 4, 5, 6, 8 |
-| `save_raw_values()` | All phases |
-| `get_metadata()` | All phases |
-| `set_seed()` | All phases |
-| `get_device()` | All phases |
-| `xai/config.py` constants | All phases |
-| V9 findings (feature map layer/shape) | Phase 2 (Grad-CAM) |
-| V8 findings (attention shape) | Phase 3 (Attention) |
-| V10 findings (fused vector shape) | Phase 4 (SHAP) |
+- Fused vector: still `[B, 1024]` (512 text-origin + 512 image-origin)
+- Prediction head: identical `Sequential(Linear(1024,512), ReLU, DO, Linear(512,256), ReLU, Linear(256,5))`
+- Model forward signature: `model(input_ids, attention_mask, pixel_values, num_images)` unchanged
+- All `xai/utils.py` functions: no changes needed
+- All `xai/config.py` constants: no changes needed
+
+### Why xai/utils.py needed no changes
+
+The utility functions interact with the model through its public forward API, which hasn't changed. `load_model()` loads state dicts generically. `get_prediction()` calls `model(...)` and reads the output. `load_single_sample()` prepares input tensors, not model internals.
 
 ---
 
-## 7. Suggested Improvements
+## 4. Engineering Decisions
 
-1. **Batch inference utility:** A `get_predictions_batch()` function for SHAP background extraction (Phase 4) would be useful. Not added now to keep Phase 1 minimal.
+### 4.1 V10 replicates `_masked_mean` inline
 
-2. **Caching:** `load_model()` could cache the model to avoid reloading in notebooks that call it multiple times. Deferred to avoid complexity.
+Rather than importing `CrossAttentionFusion._masked_mean`, V10 replicates the logic inline. This avoids a private method dependency and makes the verification self-documenting.
 
-3. **Config dataclass:** The config dict could be wrapped in a dataclass for type safety. Deferred because existing codebase uses plain dicts.
+### 4.2 V13 handles both head-averaged and per-head attention
+
+`nn.MultiheadAttention` returns `[B, T, P]` by default (averaged over heads) or `[B, 8, T, P]` if `average_attn_weights=False`. V13 handles both formats.
+
+### 4.3 No changes to existing xai/ Python modules
+
+`xai/config.py`, `xai/utils.py`, and `xai/__init__.py` required zero modifications. The architecture change only affects:
+- How the model internally processes data (token × patch vs single vector)
+- The V10 manual forward replication in the notebook
+- The cross-attention triviality finding (now reversed — V13 confirms non-trivial)
 
 ---
 
-## 8. Implementation Summary
+## 5. Compatibility with Phase 2–8
 
-### What was implemented
-- `xai/__init__.py` — package initialization with public API exports
-- `xai/config.py` — all constants for targets, dimensions, colors, defaults
-- `xai/utils.py` — 10 utility functions + 2 helper classes covering model loading, inference, preprocessing, and artifact saving
-- `xai/notebooks/Phase1_Infrastructure_Verification.ipynb` — 10-check verification notebook following existing Colab patterns
+| Phase | Impact | Notes |
+|---|---|---|
+| Phase 2 (Grad-CAM) | None | Hooks on `encoder.norm` unchanged; gradient flow differs but implementation is correct |
+| Phase 3 (Attention) | Module docstring updated | Cross-attention note updated; Phase 3 notebook Step 14 rewritten |
+| Phase 4 (SHAP) | None | Fused vector `[B, 1024]` unchanged; hook on `model.head` unchanged |
+| Phase 5 (LIME) | None | Black-box wrapper; model forward API unchanged |
+| Phase 6 (Case Study) | None | Consumer/orchestrator; no architecture dependency |
+| Phase 7 (Report) | Text update needed | Architecture descriptions should reference token × patch |
+| Phase 8 (Thesis Viz) | Diagram update needed | Architecture diagrams should show T×P attention |
 
-### What remains for later phases
-- Phase 2: `xai/gradcam_explainer.py` + Grad-CAM notebook
-- Phase 3: `xai/attention_explainer.py` + Attention notebook
-- Phase 4: `xai/shap_explainer.py` + SHAP notebook
-- Phase 5: `xai/lime_explainer.py` + LIME notebook
-- Phases 6-8: Case study selection, report generation, thesis figures
+### Downstream changes already made
 
-### Is Phase 1 ready for Phase 2?
+- `xai/attention_explainer.py`: Module docstring updated (cross-attention note)
+- `xai/attention_explainer.py`: Metadata `cross_attention_note` field updated
+- Phase 3 notebook: Step 14 rewritten to verify new cross-attention weights
+
+---
+
+## 6. Remaining Limitations
+
+1. **V10 does not test with `average_attn_weights=False`:** The per-head cross-attention weights `[B, 8, T, P]` could provide head-specific visualization, but V10 uses the default (averaged) mode.
+
+2. **Cross-attention visualization not yet implemented:** V13 verifies that weights are extractable and non-trivial, but actual visualization (e.g., "which image patch does the word 'ngon' attend to?") is deferred to Phase 3 update.
+
+3. **No automated regression test:** The notebook must be run manually on Colab to verify. There is no CI/CD integration.
+
+---
+
+## 7. Summary
+
+### Phase 1 V2 changes
+- Notebook: V10 rewritten for token × patch architecture
+- Notebook: V11, V12, V13 added (TextModel tokens, ImageModel patches, cross-attention weights)
+- Notebook: Branch updated to `xai-v3`
+- Notebook: Header updated (V2 title, 13 checks)
+- Python modules: Zero changes to `xai/config.py`, `xai/utils.py`, `xai/__init__.py`
+- Downstream: `attention_explainer.py` docstring/metadata updated
+
+### Is Phase 1 V2 ready for Phase 2?
 **Yes.** All prerequisites verified:
 - Model loads correctly (V2)
 - Preprocessing matches training pipeline (V6)
-- Swin-B spatial feature map layer identified and shape documented (V9)
+- Swin-B spatial feature map layer identified (V9)
 - PhoBERT attention extraction verified (V8)
-- Forward-pass decomposition confirmed (V10)
-- All utility functions tested and ready for import
+- Token × patch forward-pass decomposition confirmed (V10)
+- TextModel `return_tokens` API verified (V11)
+- ImageModel `forward_features` API verified (V12)
+- Cross-attention weights extractable and non-trivial (V13)

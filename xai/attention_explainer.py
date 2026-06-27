@@ -5,11 +5,11 @@ Phase 3 of the XAI pipeline. Extracts self-attention weights from PhoBERT,
 aggregates them across layers/heads, and visualizes token-level importance
 for Vietnamese restaurant review quality assessment.
 
-NOTE on cross-attention: The CrossAttentionFusion model projects text and image
-features to single vectors [B, 1, 512] before cross-attention. This means
-cross-attention Q=[B,1,512], K=[B,1,512] yields attention [B,8,1,1] which is
-trivially 1.0 after softmax — completely uninformative. This module therefore
-focuses exclusively on PhoBERT self-attention, which IS informative.
+NOTE on cross-attention: The CrossAttentionFusion model now uses token-level ×
+patch-level cross-attention (Q=[B,T,512], K=[B,P,512] → attention [B,8,T,P]).
+Cross-attention weights are informative and visualizable. This module currently
+focuses on PhoBERT self-attention; cross-attention visualization is planned for
+a future Phase 3 update.
 
 Usage:
     from xai.utils import load_model, load_single_sample
@@ -868,8 +868,9 @@ class AttentionExplainer:
                 'topk_tokens': topk_path,
             },
             'cross_attention_note': (
-                'Cross-attention weights are trivially 1.0 (Q=[B,1,512], K=[B,1,512] '
-                '-> softmax over single key = 1.0). Only PhoBERT self-attention is analyzed.'
+                'Cross-attention now uses token×patch attention (Q=[B,T,512], K=[B,P,512] '
+                '-> [B,8,T,P] weights). Cross-attention visualization is planned for Phase 3 update. '
+                'This module currently analyzes PhoBERT self-attention only.'
             ),
         }
 
