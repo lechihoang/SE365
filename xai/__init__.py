@@ -66,6 +66,10 @@ from xai.attention_explainer import (
     plot_cross_attention_heatmap,
     plot_patch_importance,
     CrossAttentionExplainer,
+    plot_token_to_patches,
+    plot_patch_to_tokens,
+    plot_topk_heatmap,
+    plot_bipartite_graph,
 )
 
 try:

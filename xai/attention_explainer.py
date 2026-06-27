@@ -1366,3 +1366,323 @@ class CrossAttentionExplainer:
             'summary': summary,
             'paths': paths,
         }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 11. Thesis-Quality Cross-Attention Visualizations
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _patch_grid_coords(num_patches: int):
+    """Return (H, W) for a square patch grid. Raises if not square."""
+    H = W = int(np.sqrt(num_patches))
+    if H * W != num_patches:
+        raise ValueError(f'P={num_patches} is not a perfect square')
+    return H, W
+
+
+def _highlight_patches_on_image(
+    img_np: np.ndarray, H: int, W: int, patch_indices: List[int],
+    scores: Optional[List[float]] = None, img_size: int = 224,
+) -> np.ndarray:
+    """Draw colored rectangles on image for given patch indices."""
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.imshow(img_np)
+    ph, pw = img_size // H, img_size // W
+    cmap = plt.cm.plasma
+    max_s = max(scores) if scores and max(scores) > 0 else 1.0
+    for rank, pidx in enumerate(patch_indices):
+        r, c = pidx // W, pidx % W
+        s = scores[rank] / max_s if scores else 1.0
+        color = cmap(s)
+        rect = mpatches.Rectangle((c * pw, r * ph), pw, ph,
+                                   linewidth=2, edgecolor=color,
+                                   facecolor=(*color[:3], 0.35))
+        ax.add_patch(rect)
+        ax.text(c * pw + pw // 2, r * ph + ph // 2, f'{pidx}',
+                ha='center', va='center', fontsize=7, color='white',
+                fontweight='bold',
+                bbox=dict(boxstyle='round,pad=0.15', fc='black', alpha=0.6))
+    ax.axis('off')
+    fig.tight_layout(pad=0)
+    fig.canvas.draw()
+    buf = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+    buf = buf.reshape(fig.canvas.get_width_height()[::-1] + (4,))[:, :, :3]
+    plt.close(fig)
+    return buf
+
+
+def plot_token_to_patches(
+    t2i_attn: np.ndarray, tokens: List[str], original_image,
+    sample_id: str, save_dir: str, top_k_tokens: int = 5,
+    top_k_patches: int = 5, dpi: int = DEFAULT_DPI,
+) -> List[str]:
+    """For each top-attended token, show which image patches it attends to.
+
+    Generates one figure per token + a grid summary figure.
+
+    Returns list of saved file paths.
+    """
+    import matplotlib.pyplot as plt
+    from PIL import Image
+
+    os.makedirs(save_dir, exist_ok=True)
+    T, P = t2i_attn.shape
+    H, W = _patch_grid_coords(P)
+    img_size = 224
+    ph, pw = img_size // H, img_size // W
+
+    img_resized = original_image.convert('RGB').resize((img_size, img_size), Image.BILINEAR)
+    img_np = np.array(img_resized, dtype=np.float32) / 255.0
+
+    token_total = t2i_attn.sum(axis=1)
+    top_token_idxs = np.argsort(token_total)[::-1][:top_k_tokens]
+    saved = []
+
+    per_token_images = []
+    per_token_labels = []
+
+    for rank, tidx in enumerate(top_token_idxs):
+        if tidx >= len(tokens):
+            continue
+        tok = tokens[tidx]
+        row = t2i_attn[tidx]
+        top_pidxs = np.argsort(row)[::-1][:top_k_patches]
+        top_scores = [float(row[p]) for p in top_pidxs]
+
+        fig, axes = plt.subplots(1, top_k_patches + 1, figsize=(3 * (top_k_patches + 1), 3.5))
+        axes[0].imshow(img_np)
+        axes[0].set_title(f'Token: "{tok}"', fontsize=10, fontweight='bold')
+        axes[0].axis('off')
+
+        for i, (pidx, sc) in enumerate(zip(top_pidxs, top_scores)):
+            r, c = int(pidx) // W, int(pidx) % W
+            y0, x0 = r * ph, c * pw
+            crop = img_np[y0:y0+ph, x0:x0+pw]
+            axes[i+1].imshow(crop)
+            axes[i+1].set_title(f'P{pidx} ({r},{c})\n{sc:.4f}', fontsize=8)
+            axes[i+1].axis('off')
+
+        fig.suptitle(f'{sample_id} — Token "{tok}" → Top Patches', fontsize=11, fontweight='bold')
+        fig.tight_layout()
+        safe_tok = tok.replace('/', '_').replace('\\', '_')[:20]
+        fname = f'token_overlay_{rank+1}_{safe_tok}.png'
+        fpath = os.path.join(save_dir, fname)
+        fig.savefig(fpath, dpi=dpi, bbox_inches='tight', facecolor='white')
+
+        per_token_images.append(
+            _highlight_patches_on_image(img_np, H, W, [int(p) for p in top_pidxs], top_scores, img_size)
+        )
+        per_token_labels.append(tok)
+        plt.close(fig)
+        saved.append(fpath)
+
+    if per_token_images:
+        n = len(per_token_images)
+        fig, axes = plt.subplots(1, n, figsize=(5 * n, 5))
+        if n == 1:
+            axes = [axes]
+        for ax, img_buf, label in zip(axes, per_token_images, per_token_labels):
+            ax.imshow(img_buf)
+            ax.set_title(f'"{label}"', fontsize=10, fontweight='bold')
+            ax.axis('off')
+        fig.suptitle(f'{sample_id} — Top Tokens → Patch Overlay', fontsize=12, fontweight='bold')
+        fig.tight_layout()
+        grid_path = os.path.join(save_dir, 'top_tokens_patch_overlay_grid.png')
+        fig.savefig(grid_path, dpi=dpi, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
+        saved.append(grid_path)
+
+    return saved
+
+
+def plot_patch_to_tokens(
+    i2t_attn: np.ndarray, tokens: List[str], original_image,
+    sample_id: str, save_dir: str, top_k_patches: int = 5,
+    top_k_tokens: int = 5, dpi: int = DEFAULT_DPI,
+) -> List[str]:
+    """For each top-attended patch, show which text tokens it attends to.
+
+    Returns list of saved file paths.
+    """
+    import matplotlib.pyplot as plt
+    from PIL import Image
+
+    os.makedirs(save_dir, exist_ok=True)
+    P, T = i2t_attn.shape
+    H, W = _patch_grid_coords(P)
+    img_size = 224
+    ph, pw = img_size // H, img_size // W
+
+    img_resized = original_image.convert('RGB').resize((img_size, img_size), Image.BILINEAR)
+    img_np = np.array(img_resized, dtype=np.float32) / 255.0
+
+    patch_total = i2t_attn.sum(axis=1)
+    top_pidxs = np.argsort(patch_total)[::-1][:top_k_patches]
+    saved = []
+
+    for rank, pidx in enumerate(top_pidxs):
+        pidx = int(pidx)
+        r, c = pidx // W, pidx % W
+        y0, x0 = r * ph, c * pw
+        crop = img_np[y0:y0+ph, x0:x0+pw]
+        row = i2t_attn[pidx]
+        top_tidxs = np.argsort(row)[::-1][:top_k_tokens]
+        top_tok_scores = [(tokens[ti] if ti < len(tokens) else '?', float(row[ti]))
+                          for ti in top_tidxs]
+
+        fig, axes = plt.subplots(1, 3, figsize=(14, 4),
+                                  gridspec_kw={'width_ratios': [1, 1, 1.5]})
+        axes[0].imshow(img_np)
+        rect = plt.Rectangle((x0, y0), pw, ph, linewidth=3,
+                               edgecolor='lime', facecolor=(0, 1, 0, 0.25))
+        axes[0].add_patch(rect)
+        axes[0].set_title(f'Patch {pidx} ({r},{c})', fontsize=10, fontweight='bold')
+        axes[0].axis('off')
+
+        axes[1].imshow(crop)
+        axes[1].set_title('Zoomed Patch', fontsize=10)
+        axes[1].axis('off')
+
+        y_pos = range(len(top_tok_scores))
+        bars_labels = [t for t, _ in reversed(top_tok_scores)]
+        bars_vals = [s for _, s in reversed(top_tok_scores)]
+        colors = [COLOR_SCHEMES['modality_colors']['text']] * len(bars_vals)
+        axes[2].barh(y_pos, bars_vals, color=colors, edgecolor='white')
+        axes[2].set_yticks(y_pos)
+        axes[2].set_yticklabels(bars_labels, fontsize=9)
+        axes[2].set_xlabel('Attention', fontsize=9)
+        axes[2].set_title('Top Tokens', fontsize=10, fontweight='bold')
+        for bar, val in zip(axes[2].patches, bars_vals):
+            axes[2].text(bar.get_width() + 0.001, bar.get_y() + bar.get_height()/2,
+                         f'{val:.4f}', va='center', fontsize=7)
+
+        fig.suptitle(f'{sample_id} — Patch {pidx} → Token Explanation', fontsize=11, fontweight='bold')
+        fig.tight_layout()
+        fpath = os.path.join(save_dir, f'patch_{pidx}_token_explanation.png')
+        fig.savefig(fpath, dpi=dpi, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
+        saved.append(fpath)
+
+    return saved
+
+
+def plot_topk_heatmap(
+    t2i_attn: np.ndarray, tokens: List[str],
+    sample_id: str, save_path: str,
+    top_k_tokens: int = 10, top_k_patches: int = 10,
+    dpi: int = DEFAULT_DPI,
+) -> str:
+    """Plot a readable heatmap of only the top-K tokens × top-K patches."""
+    import matplotlib.pyplot as plt
+
+    T, P = t2i_attn.shape
+    H, W = _patch_grid_coords(P)
+
+    tok_imp = t2i_attn.sum(axis=1)
+    top_tidxs = np.argsort(tok_imp)[::-1][:min(top_k_tokens, T)]
+
+    patch_imp = t2i_attn.sum(axis=0)
+    top_pidxs = np.argsort(patch_imp)[::-1][:min(top_k_patches, P)]
+
+    sub = t2i_attn[np.ix_(top_tidxs, top_pidxs)]
+    row_labels = [tokens[i] if i < len(tokens) else '?' for i in top_tidxs]
+    col_labels = [f'P{p}({p//W},{p%W})' for p in top_pidxs]
+
+    fig, ax = plt.subplots(figsize=(max(6, len(col_labels)*0.8), max(4, len(row_labels)*0.5)))
+    try:
+        import seaborn as sns
+        sns.heatmap(sub, xticklabels=col_labels, yticklabels=row_labels,
+                    cmap='viridis', annot=True, fmt='.3f', ax=ax,
+                    cbar_kws={'shrink': 0.7})
+    except ImportError:
+        im = ax.imshow(sub, cmap='viridis', aspect='auto')
+        ax.set_xticks(range(len(col_labels)))
+        ax.set_xticklabels(col_labels, rotation=90, fontsize=7)
+        ax.set_yticks(range(len(row_labels)))
+        ax.set_yticklabels(row_labels, fontsize=8)
+        plt.colorbar(im, ax=ax, shrink=0.7)
+
+    ax.set_title(f'{sample_id} — Top-{len(row_labels)} Tokens × Top-{len(col_labels)} Patches',
+                 fontsize=11, fontweight='bold')
+    ax.set_xlabel('Image Patches', fontsize=9)
+    ax.set_ylabel('Text Tokens', fontsize=9)
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    fig.savefig(save_path, dpi=dpi, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    print(f'[XAI] Saved top-K heatmap: {save_path}')
+    return save_path
+
+
+def plot_bipartite_graph(
+    t2i_attn: np.ndarray, tokens: List[str],
+    sample_id: str, save_path: str,
+    top_k_edges: int = 15, dpi: int = DEFAULT_DPI,
+) -> str:
+    """Draw a bipartite graph: tokens (left) ↔ patches (right), edges = attention."""
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+
+    T, P = t2i_attn.shape
+    H, W = _patch_grid_coords(P)
+
+    flat = t2i_attn.flatten()
+    topk_flat = np.argsort(flat)[::-1][:top_k_edges]
+
+    left_set = set()
+    right_set = set()
+    edges = []
+    for idx in topk_flat:
+        ti = int(idx // P)
+        pi = int(idx % P)
+        left_set.add(ti)
+        right_set.add(pi)
+        edges.append((ti, pi, float(flat[idx])))
+
+    left_list = sorted(left_set)
+    right_list = sorted(right_set)
+    left_y = {v: i for i, v in enumerate(left_list)}
+    right_y = {v: i for i, v in enumerate(right_list)}
+
+    fig_h = max(4, max(len(left_list), len(right_list)) * 0.5 + 1)
+    fig, ax = plt.subplots(figsize=(10, fig_h))
+
+    max_score = max(e[2] for e in edges) if edges else 1.0
+    for ti, pi, sc in edges:
+        lw = 1 + 4 * (sc / max_score)
+        alpha = 0.3 + 0.7 * (sc / max_score)
+        ax.plot([0.15, 0.85], [left_y[ti], right_y[pi]],
+                color='steelblue', linewidth=lw, alpha=alpha)
+
+    for ti in left_list:
+        tok = tokens[ti] if ti < len(tokens) else '?'
+        ax.plot(0.15, left_y[ti], 'o', color=COLOR_SCHEMES['modality_colors']['text'],
+                markersize=10, zorder=5)
+        ax.text(0.12, left_y[ti], tok, ha='right', va='center', fontsize=8, fontweight='bold')
+
+    for pi in right_list:
+        r, c = pi // W, pi % W
+        ax.plot(0.85, right_y[pi], 's', color=COLOR_SCHEMES['modality_colors']['image'],
+                markersize=10, zorder=5)
+        ax.text(0.88, right_y[pi], f'P{pi}({r},{c})', ha='left', va='center', fontsize=8)
+
+    ax.set_xlim(-0.1, 1.1)
+    ax.set_ylim(-0.5, max(len(left_list), len(right_list)) - 0.5)
+    ax.invert_yaxis()
+    ax.axis('off')
+
+    text_patch = mpatches.Patch(color=COLOR_SCHEMES['modality_colors']['text'], label='Text Tokens')
+    img_patch = mpatches.Patch(color=COLOR_SCHEMES['modality_colors']['image'], label='Image Patches')
+    ax.legend(handles=[text_patch, img_patch], loc='lower center', ncol=2, fontsize=9)
+
+    ax.set_title(f'{sample_id} — Token↔Patch Bipartite (Top-{top_k_edges})',
+                 fontsize=12, fontweight='bold', pad=15)
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    fig.savefig(save_path, dpi=dpi, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    print(f'[XAI] Saved bipartite graph: {save_path}')
+    return save_path

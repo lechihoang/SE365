@@ -120,17 +120,52 @@ All existing PhoBERT self-attention outputs are preserved unchanged. Cross-atten
 
 ---
 
-## 7. Summary
+## 7. Cross-Attention Visualization Upgrade
 
-### What was missing
-Cross-attention visualization was completely absent. Only a verification cell existed (proving weights are non-trivial) with no saved artifacts.
+### Why the upgrade
 
-### What was added
-- 3 new functions + 1 new class in `attention_explainer.py` (~250 lines)
-- 4 new exports in `__init__.py`
-- 6 new notebook cells (Steps 14b, 14c, 14d + markdown headers)
-- Updated final summary cell with 13 checks (was 9)
-- Per-sample output: 5 artifact files in `cross_attention/{sample_id}/`
+The initial cross-attention outputs were raw JSON files and a generic patch importance map. For a 139-token × 49-patch matrix, the full heatmap is unreadable. The upgrade implements a **Top-K** visualization strategy: instead of showing all 6811 pairs, it highlights only the most informative token-patch relationships with thesis-quality figures.
+
+### Newly added visualizations
+
+| Function | Output | Description |
+|---|---|---|
+| `plot_token_to_patches()` | `token_overlay_{rank}_{token}.png` + grid | For each top token, shows which patches it attends to with zoomed crops |
+| `plot_patch_to_tokens()` | `patch_{idx}_token_explanation.png` | For each top patch: highlighted patch, zoom, top-token bar chart |
+| `plot_topk_heatmap()` | `topk_token_patch_heatmap.png` | Top-10×10 readable annotated heatmap |
+| `plot_bipartite_graph()` | `token_patch_bipartite_graph.png` | Tokens (left) ↔ Patches (right) with weighted edges |
+
+### Top-K strategy
+
+- Full T×P heatmaps are skipped for T>60 (unreadable at 139×49)
+- All thesis figures use Top-K selection (default K=5 for tokens/patches, K=15 for edges)
+- Raw matrices are always saved in `.npz` for any downstream analysis
+
+### Interpretation guidelines
+
+| Figure | Question answered |
+|---|---|
+| Token→Patch overlay | "Which image regions does the word 'ngon' focus on?" |
+| Patch→Token explanation | "Which words describe this food region?" |
+| Top-K heatmap | "What are the strongest token-patch associations?" |
+| Bipartite graph | "What are the dominant cross-modal connections?" |
+
+### Patch visualization rule
+
+Whenever a patch index is mentioned visually, it is always shown highlighted on the original image with a zoomed crop. No figure requires the reader to mentally locate a patch.
+
+---
+
+## 8. Summary
+
+### What was added (V3 initial)
+- `extract_cross_attention()`, `plot_cross_attention_heatmap()`, `plot_patch_importance()`, `CrossAttentionExplainer` (~250 lines)
+- 4 exports + 6 notebook cells (Steps 14b, 14c, 14d)
+
+### What was added (V3 upgrade)
+- `plot_token_to_patches()`, `plot_patch_to_tokens()`, `plot_topk_heatmap()`, `plot_bipartite_graph()` (~300 lines)
+- 4 new exports + 4 new notebook cells (Steps 14c-2, 14c-3)
+- Per-sample: ~15 additional PNG files (token overlays, patch explanations, heatmap, bipartite)
 
 ### Existing outputs preserved
-All PhoBERT self-attention outputs in `attention/` are completely unchanged.
+All PhoBERT self-attention outputs in `attention/` and initial cross-attention outputs are unchanged.
