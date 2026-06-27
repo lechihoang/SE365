@@ -191,32 +191,47 @@ Calling `model.text_model.encoder(input_ids, attention_mask, output_attentions=T
 
 **What the attention matrix means:** Element `[b, h, i, j]` is the attention weight that token `i` assigned to token `j` in head `h` of that layer, for sample `b`. Each row sums to 1.0 (after softmax). Row 0 corresponds to the `<s>` (CLS) token's attention distribution over all tokens.
 
-### 5.2 SECONDARY (NOT USEFUL): Cross-Attention in CrossAttentionFusion
+### 5.2 SECONDARY (NOW INFORMATIVE): Cross-Attention in CrossAttentionFusion
 
-**Location:** `Models/CrossAttentionFusion.py`, lines 57-58.
+**Location:** `Models/CrossAttentionFusion.py`, lines 67-68.
+
+> **ARCHITECTURE UPDATE:** The CrossAttentionFusion has been redesigned from a degenerate single-vector cross-attention to a proper token-level × patch-level cross-attention. Cross-attention weights are now **informative and valuable for visualization.**
 
 ```python
-t_out, _ = self.cross_attn_t2i(query=t, key=i, value=i)
-i_out, _ = self.cross_attn_i2t(query=i, key=t, value=t)
+# New architecture: token-level text × patch-level image
+t = self.text_proj(text_tokens)     # (B, T, hidden=512) — T text tokens
+i = self.image_proj(image_patches)  # (B, P, hidden=512) — P image patches
+
+t_out, _ = self.cross_attn_t2i(query=t, key=i, value=i, key_padding_mask=i_kpm)
+i_out, _ = self.cross_attn_i2t(query=i, key=t, value=t, key_padding_mask=t_kpm)
 ```
 
-**Why it is NOT useful for visualization:**
+**Why it IS now useful for visualization:**
 
 The inputs to `nn.MultiheadAttention` are:
-- `t = self.text_proj(text_feat).unsqueeze(1)` with shape `[B, 1, 512]`
-- `i = self.image_proj(image_feat).unsqueeze(1)` with shape `[B, 1, 512]`
+- `t = self.text_proj(text_tokens)` with shape `[B, T, 512]` where T = text sequence length (~256)
+- `i = self.image_proj(image_patches)` with shape `[B, P, 512]` where P = image patches (49 for Swin-B 7×7)
 
-Both query and key have sequence length 1. The attention computation is:
-
+The attention computation produces:
 ```
-attn_weights = softmax(Q @ K^T / sqrt(d_k))
+attn_weights_t2i = softmax(Q_text @ K_image^T / sqrt(64))  →  [B, 8, T, P]
+attn_weights_i2t = softmax(Q_image @ K_text^T / sqrt(64))  →  [B, 8, P, T]
 ```
 
-where `Q` has shape `[B, 8, 1, 64]` and `K` has shape `[B, 8, 1, 64]`, so `Q @ K^T` has shape `[B, 8, 1, 1]`. After softmax over the last dimension (length 1), the result is always `[B, 8, 1, 1]` with value `1.0`.
+These are **real attention matrices** showing:
+- `attn_weights_t2i[b, h, i, j]` = how much text token `i` attends to image patch `j`
+- `attn_weights_i2t[b, h, j, i]` = how much image patch `j` attends to text token `i`
 
-**Mathematical proof:** For any scalar `x`, `softmax([x]) = [1.0]`. Since the key sequence length is 1, the query has exactly one key to attend to, so the attention weight is trivially 1.0 regardless of the learned projection weights.
+**Visualization opportunities:**
+1. **Text-to-Image attention map:** For a specific text token (e.g., "ngon"), show which image patches it focuses on → overlaid on the original image as a heatmap.
+2. **Image-to-Text attention map:** For a specific image patch (e.g., food region), show which text tokens it focuses on → word importance ranking.
+3. **Cross-modal attention grid:** T×P matrix visualized as a heatmap showing the full text-image interaction pattern.
 
-**Decision:** Document this finding explicitly. Do not attempt to visualize cross-attention weights. Explain in the thesis that the current architecture uses pooled single-vector features for cross-modal fusion, which makes cross-attention weights uninformative. This is not a defect -- it is a design choice that trades token-level cross-modal interaction for computational simplicity. For token-level cross-modal attention, the architecture would need to pass full token sequences `[B, L, 512]` as keys and values, which is a different design outside the scope of this thesis.
+**Implementation:** The current code discards attention weights (`_, _ = self.cross_attn_t2i(...)`). To extract them, either modify the forward pass or register hooks on `cross_attn_t2i` and `cross_attn_i2t` to capture the second return value.
+
+**Decision:** Cross-attention visualization is now a **primary** XAI capability alongside PhoBERT self-attention. Phase 3 should implement both:
+1. PhoBERT self-attention (token-to-token within text)
+2. Cross-attention (text-to-image and image-to-text)
 
 ### 5.3 Architecture Diagram (Text XAI Attachment)
 
@@ -244,18 +259,17 @@ input_ids [1, L], attention_mask [1, L]
         |
         v
 text_feat = pooler_output or CLS token [1, 768]
-        |
-        v
-TextModel.fc: Linear(768, 256) + ReLU + Dropout
-        |
-        v
-features [1, 256]
+text_tokens = last_hidden_state [1, T, 768]   <--- NEW: full token sequence
+text_pad = attention_mask == 0 [1, T]          <--- NEW: padding mask
         |
         v  (to CrossAttentionFusion)
-text_proj: Linear(768, 512)   <--- NOTE: uses raw text_feat, not fc output
+text_proj: Linear(768, 512)   <--- Applied to ALL tokens, not just CLS
         |
         v
-t = [1, 1, 512]  --> cross_attn_t2i --> trivial [1, 8, 1, 1] weights
+t = [B, T, 512]  --> cross_attn_t2i(Q=t, K=i, V=i) --> [B, 8, T, P] attention
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      REAL token×patch attention (NEW)
+                      Visualizable: which image patches each token attends to
 ```
 
 ---

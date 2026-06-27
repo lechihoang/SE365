@@ -203,11 +203,13 @@ Baseline fusion:
 * Pass the joint representation through fully connected layers.
 * Predict overall quality score and factor scores.
 
-Advanced extension:
+Advanced extension (implemented):
 
-* Apply cross-attention so that textual features attend to visual cues and visual features attend to textual evidence.
-* This extension is useful when the image and text provide complementary or conflicting signals.
-* It can improve robustness for short reviews, where limited text must be grounded in image content.
+* Apply **token-level × patch-level cross-attention** so that each text token attends to all image patches, and each image patch attends to all text tokens.
+* Text tokens `[B, T, 512]` serve as queries attending to image patches `[B, P, 512]` as keys/values, and vice versa.
+* Proper padding masks ensure that padding tokens and padding images are excluded from attention.
+* Cross-attended outputs are masked-mean-pooled and concatenated into a `[B, 1024]` fused representation.
+* This provides rich cross-modal interaction where each word can "look at" specific food/restaurant image regions, and each image patch can "look at" specific review words.
 
 ---
 

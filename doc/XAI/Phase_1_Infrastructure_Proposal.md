@@ -79,9 +79,9 @@ The existing demo notebook (`notebook/demo_single_sample_exp060A.ipynb`) proves 
 
 | Input | Path | Description |
 |---|---|---|
-| TextModel | `Models/TextModel.py` | PhoBERT wrapper. Returns `(factor_head_output, raw_features)` where `raw_features` is `[B, 768]`. |
-| ImageModel | `Models/ImageModel.py` | Swin-B via timm. Returns `(factor_head_output, raw_features)` where `raw_features` is `[B, 1024]`. Handles multi-image with masked average pooling. |
-| CrossAttentionFusion | `Models/CrossAttentionFusion.py` | Bidirectional cross-attention. Takes `text_feat [B, 768]` and `image_feat [B, 1024]`, projects to 512, cross-attends, concatenates to `[B, 1024]`, head outputs `[B, 5]`. |
+| TextModel | `Models/TextModel.py` | PhoBERT wrapper. Returns `(factor_head_output, raw_features)` where `raw_features` is `[B, 768]`. With `return_tokens=True`, also returns `(preds, features, tokens [B, T, 768], pad_mask [B, T])`. |
+| ImageModel | `Models/ImageModel.py` | Swin-B via timm. `forward()` returns `(factor_head_output, raw_features [B, 1024])` with multi-image masked average pooling. `forward_features()` returns `(patches [B, P, D], patch_mask [B, P])` with patch-level spatial features. |
+| CrossAttentionFusion | `Models/CrossAttentionFusion.py` | **Token × Patch** bidirectional cross-attention. Projects text tokens `[B, T, 768]` and image patches `[B, P, 1024]` to hidden=512, applies cross-attention with proper padding masks, masked-mean-pools the outputs, concatenates to `[B, 1024]`, head outputs `[B, 5]`. |
 | TimmProcessor | `main.py` (class `TimmProcessor`) | Wraps `timm.data.create_transform` for image preprocessing. Must be replicated exactly. |
 | Dataset | `src/dataset.py` | `MultimodalDataset` with MD5-based image loading, max 4 images, black-image padding. |
 

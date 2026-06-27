@@ -1,5 +1,7 @@
 # Phase 2: Grad-CAM for Image Branch -- Implementation Proposal
 
+> **⚠ ARCHITECTURE UPDATE NOTICE:** The CrossAttentionFusion module has been redesigned from degenerate single-vector cross-attention to proper token×patch cross-attention. Some code snippets in this document (e.g., `[B, 1, 512]` tensor shapes in the architecture diagram) reflect the old architecture. See `XAI_MIGRATION_REPORT.md` for the full diff. The Grad-CAM attachment point (`encoder.norm`) and the fused vector structure (`[B, 1024]`) remain unchanged.
+
 ---
 
 ## 1. Purpose

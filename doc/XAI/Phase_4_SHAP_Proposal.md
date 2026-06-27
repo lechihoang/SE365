@@ -6,6 +6,8 @@
 
 ---
 
+> **⚠ ARCHITECTURE UPDATE NOTICE:** CrossAttentionFusion now uses token×patch cross-attention instead of single-vector cross-attention. The fused vector structure (`[B, 1024]`, first 512 = text-origin, last 512 = image-origin) and the prediction head are unchanged. Architecture diagrams showing `[B, 1, 512]` shapes reflect the old design. See `XAI_MIGRATION_REPORT.md` for details.
+
 ## 1. Purpose
 
 ### Why this phase exists
