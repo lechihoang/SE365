@@ -45,7 +45,7 @@ def test():
     try:
         image_processor = AutoImageProcessor.from_pretrained(args.image_model_name)
     except Exception:
-        if "google/siglip" in args.image_model_name:
+        if 'siglip' in args.image_model_name.lower():  # consistent with main.py
             image_processor = AutoImageProcessor.from_pretrained('google/siglip-base-patch16-256')
         else:
             image_processor = TimmProcessor(args.image_model_name)

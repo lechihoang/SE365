@@ -94,6 +94,7 @@ class MockImageModel(nn.Module):
         self.encoder = MockEncoder(num_features=num_features, P=P)
         self.dummy_param = nn.Parameter(torch.zeros(1))
 
+
     def forward(self, pixel_values, num_images=None):
         if pixel_values.dim() == 4:
             pixel_values = pixel_values.unsqueeze(1)
@@ -248,10 +249,12 @@ def test_film_init_is_identity():
         model = FiLMFusion(text_model, image_model, num_factors=5)
         g_w, g_b = model.film_gamma.weight, model.film_gamma.bias
         b_w, b_b = model.film_beta.weight, model.film_beta.bias
-        assert torch.allclose(g_w, torch.ones_like(g_w)), "gamma weight != 1"
-        assert torch.allclose(g_b, torch.zeros_like(g_b)), "gamma bias != 0"
-        assert torch.allclose(b_w, torch.zeros_like(b_w)), "beta weight != 0"
-        assert torch.allclose(b_b, torch.zeros_like(b_b)), "beta bias != 0"
+        # film_gamma init: weight=0 so output = bias only; bias=1 → gamma(text) ≈ 1 → identity scale
+        # film_beta  init: weight=0, bias=0 → beta(text) ≈ 0 → no shift
+        assert torch.allclose(g_w, torch.zeros_like(g_w)), "gamma weight should be 0 (output = bias only)"
+        assert torch.allclose(g_b, torch.ones_like(g_b)),  "gamma bias should be 1 (identity scale)"
+        assert torch.allclose(b_w, torch.zeros_like(b_w)), "beta weight should be 0"
+        assert torch.allclose(b_b, torch.zeros_like(b_b)), "beta bias should be 0 (no shift)"
         print(f"  ✅ [PASS] gamma=1, beta=0 at init -> identity modulation")
         return 1, 1
     except Exception:
