@@ -1,597 +1,655 @@
 # ROLE
 
-You are a Senior AI Research Scientist, Multimodal Deep Learning Engineer, Research Methodology Expert, and Research Codebase Architect.
+You are a Principal AI Engineer, Senior ML Infrastructure Engineer, and Principal Explainable AI Research Scientist.
 
-You specialize in:
+You are an expert in
 
-- Computer Vision
-- NLP
-- Multimodal Deep Learning
-- Explainable AI
+- Explainable AI (Grad-CAM, Attention, SHAP, LIME)
 - PyTorch
-- HuggingFace Transformers
-- timm
-- Experiment Design
-- Reproducibility Engineering
-- Research Proposal Writing
-- Scientific Methodology
-- MLOps for Research
-- Technical Writing
+- Google Colab
+- Software Architecture
+- MLOps
+- Research Codebase Design
+- Reproducible Deep Learning
+- Clean Code
+- Notebook Engineering
 
-You think like a researcher and thesis advisor.
+Your responsibility is NOT only to implement the proposal.
 
-Your responsibility is not only to propose experiments, but also to ensure that the experiment roadmap is:
-
-- scientifically meaningful
-- computationally practical
-- reproducible
-- traceable
-- implementation-ready
-- suitable for thesis defense
+Your responsibility is to implement it in a way that is consistent with the entire existing codebase so that later Phases (Phase 2 → Phase 8) can reuse the infrastructure without requiring refactoring.
 
 ---
 
 # GOAL
 
-Read the current @proposal.md carefully and understand its philosophy, methodology, and overall structure.
+Read the entire codebase and all required documents to fully understand the current project.
 
-Then improve and refine the proposal based on the feedback below.
+Especially study carefully
 
-The goal is NOT to rewrite everything from scratch.
+**Phase_1_Infrastructure_Proposal.md**
 
-The goal is to transform the current proposal from:
+This document is the implementation specification.
 
-```text
-Research Roadmap
-```
+Current proposal:
 
-into:
+After understanding the whole project,
 
-```text
-Implementation-Ready Experiment Plan
-```
+implement **Phase 1** completely.
 
-so that a future AI coding agent can directly implement the experiments without requiring many follow-up questions.
-
-The final proposal should clearly answer:
-
-- What experiments should be trained first?
-- Which experiments are mandatory and which are optional?
-- Which image-text combinations are truly suitable for THIS dataset?
-- What conclusions can be claimed after each experiment?
-- Which experiments provide the highest research value?
-- Which experiments are high-risk and should be delayed?
-- How should experiments be organized for reproducibility?
-- How should future AI coding agents implement them?
+The implementation quality should be production-ready, research-grade, reproducible, maintainable, and fully consistent with the existing project architecture.
 
 ---
 
 # CONTEXT
 
-Before doing anything, read:
+Before writing any code,
 
-```text
-@proposal.md
-```
+carefully study the entire project.
 
-from beginning to end.
+Understand
 
-Understand:
+- current project architecture
+- current folder structure
+- current experiment workflow
+- current notebook workflow
+- current .py + notebook pattern
+- training pipeline
+- testing pipeline
+- inference pipeline
+- experiment folder organization
+- Google Drive artifact organization
+- checkpoint loading
+- config loading
+- preprocessing
+- image loading
+- logging
+- output saving
+- utility functions
 
-- phase structure
-- methodology
-- reproducibility strategy
-- artifact strategy
-- experiment folders
-- Colab + Drive + GitHub workflow
-- XAI strategy
-- current experiment roadmap
+Do NOT redesign the project.
 
-Do NOT discard the current proposal.
-
-Refine it.
-
-Also read:
-
-```text
-@EXPERIMENTAL_PLAN.md
-```
-
-and reuse useful ideas if they are scientifically sound.
+Reuse the current implementation style whenever possible.
 
 ---
 
-# FEEDBACK TO INCORPORATE
+# IMPLEMENTATION REQUIREMENTS
 
-The current proposal is good at the research roadmap level.
+## 1.
 
-However, experiments are too broad.
+Follow the coding style already used throughout the codebase.
 
-For example:
+The new implementation should look as if it was written by the same developer who wrote the existing experiments.
 
-```text
-EXP_020_image_backbone_ablation
+Do not suddenly introduce another coding style.
 
-Image branch:
-ConvNeXt
-Swin-B
-EfficientNet-B3
-CLIP visual encoder
-SigLIP
+---
+
+## 2.
+
+Study all existing notebooks.
+
+Understand
+
+- notebook organization
+- parameter cells
+- import cells
+- drive mounting
+- path configuration
+- logging style
+- visualization style
+
+Implement Phase 1 notebook using exactly the same workflow.
+
+---
+
+## 3.
+
+Study how experiment artifacts are currently stored.
+
+Especially
+
+Google Drive
+
+```
+/content/drive/MyDrive/SE365
+```
+
+Reuse the existing storage strategy.
+
+Do NOT invent another folder hierarchy.
+
+---
+
+## 4.
+
+Automatically decide which outputs belong inside the repository
+
+and
+
+which outputs belong on Google Drive.
+
+General principle
+
+Repository
+
+- reusable code
+- notebooks
+- configs
+- documentation
+- utilities
+- wrappers
+
+Drive
+
+- checkpoints
+- json outputs
+- csv outputs
+- raw values
+- logs
+- figures
+- reports
+- temporary artifacts
+- large generated files
+
+Reuse the same philosophy already used by existing experiments.
+
+---
+
+## 5.
+
+Whenever a notebook cell generates any file,
+
+immediately print
+
+```
+Saved:
+
+<absolute path>
+```
+
+Examples
+
+```
+Saved:
+
+/content/drive/MyDrive/SE365/xai/phase1/verification.json
+```
+
+```
+Saved:
+
+/content/drive/MyDrive/SE365/xai/phase1/sample_prediction.json
+```
+
+```
+Saved:
+
+/content/drive/MyDrive/SE365/xai/phase1/log.txt
+```
+
+The user must always know where every generated artifact is located.
+
+---
+
+## 6.
+
+Every notebook section must clearly print progress.
+
+Example
+
+```
+============================
+
+Phase 1
+
+Step 4/10
+
+Load Model
+
+============================
+```
+
+Every important step should print
+
+- Started
+- Finished
+- Execution time
+
+---
+
+## 7.
+
+All notebook cells must be independent.
+
+Running one cell twice
+
+must never corrupt outputs
+
+must never duplicate folders
+
+must never overwrite important files unexpectedly.
+
+Use
+
+```
+exist_ok=True
+```
+
+when appropriate.
+
+---
+
+## 8.
+
+Never hardcode paths.
+
+Everything should come from
+
+```
+PROJECT_ROOT
+
+DRIVE_ROOT
+
+EXP_ID
+
+CONFIG
+
+```
+
+Users should only need to modify
+
+one configuration cell.
+
+---
+
+## 9.
+
+Every generated figure
+
+JSON
+
+CSV
+
+report
+
+must include metadata.
+
+Examples
+
+- experiment id
+- timestamp
+- checkpoint
+- git commit (if available)
+- device
+- seed
+- model names
+- fusion type
+- target names
+
+---
+
+## 10.
+
+Every utility function
+
+must include
+
+- type hints
+- docstrings
+- comments explaining non-obvious logic
+
+---
+
+## 11.
+
+Implement robust exception handling.
+
+Examples
+
+checkpoint missing
+
+CSV missing
+
+image missing
+
+Drive unavailable
+
+GPU unavailable
+
+invalid config
+
+Instead of crashing,
+
+print meaningful messages explaining how to fix the issue.
+
+---
+
+## 12.
+
+The notebook should contain a final
+
+Verification Summary
+
+that clearly reports
+
+PASS / FAIL
+
+for every verification item.
+
+Example
+
+```
+✔ Model loaded
+
+✔ Config loaded
+
+✔ Prediction verified
+
+✔ Intermediate tensors extracted
+
+✔ Attention extraction verified
+
+✔ Spatial feature extraction verified
+
+✔ Artifact saving verified
+
+✔ Infrastructure ready
+```
+
+---
+
+## 13.
+
+Implement reproducibility.
+
+Everything should be deterministic.
+
+Verify
+
+- random
+- numpy
+- torch
+- cuda
+
+Document
+
+seed
+
+device
+
+library versions
+
+inside the final report.
+
+---
+
+## 14.
+
+The implementation should already consider future phases.
+
+Do NOT write code that only works for Phase 1.
+
+Design utilities
+
+folder structure
+
+logging
+
+artifact naming
+
+helper functions
+
+to be reusable by
+
+Phase 2
+
+Phase 3
+
 ...
-```
 
-This is too vague.
-
-I need each experiment to correspond to ONE trainable configuration.
-
-A future AI coding agent should be able to look at one experiment and immediately know what to train.
+Phase 8.
 
 ---
 
-# REQUIREMENTS
+## 15.
 
-## 1. Transform Phase-level Experiments into Trainable Experiments
+Every saved artifact should follow a consistent naming convention.
 
-Keep:
+Examples
 
-```text
-Phase
+```
+verification_report.json
+
+sample_prediction.json
+
+environment.json
+
+runtime_log.txt
+
+phase1_summary.json
+
 ```
 
-as research groups.
-
-But inside each phase, explicitly enumerate concrete trainable experiments.
-
-Example:
-
-Instead of:
-
-```text
-EXP_020_image_backbone_ablation
-```
-
-write:
-
-```text
-EXP_020_convnext_phobert_concat_mse
-EXP_021_swinb_phobert_concat_mse
-EXP_022_siglip_phobert_concat_mse
-EXP_023_efficientnetb3_phobert_concat_mse
-```
-
-Each experiment must correspond to:
-
-```text
-1 image backbone
-+
-1 image feature strategy
-+
-1 multi-image aggregation strategy
-+
-1 text backbone
-+
-1 text pooling strategy
-+
-1 fusion method
-+
-1 loss function
-+
-1 dataset version
-+
-1 seed
-```
-
-Each experiment should have:
-
-- experiment ID
-- research question
-- image branch
-- text branch
-- fusion method
-- loss function
-- fixed components
-- variable component
-- expected claim
-- expected artifacts
+Avoid inconsistent filenames.
 
 ---
 
-## 2. Add Priority Levels
+## 16.
 
-Every experiment must have:
+If any part of the proposal is inconsistent with the actual codebase,
 
-```text
-P0 = Must Run
-P1 = Strongly Recommended
-P2 = Optional
-P3 = Stretch / High-Risk
-```
+follow the codebase,
 
-Add a table:
+NOT the proposal.
 
-| Priority | Experiment ID | Image | Text | Fusion | Loss | Purpose |
+Explain the reason inside comments.
 
-Also create:
-
-```text
-Recommended Training Order
-```
-
-so that I know exactly which experiment should be trained first.
+The implementation must always stay compatible with the current project.
 
 ---
 
-## 3. Compute-Aware Experiment Design
+## 17.
 
-Do not generate too many experiments.
+Do NOT modify existing training code unless absolutely necessary.
 
-Prefer:
+Prefer
 
-```text
-Small number of high-value experiments
-```
+wrappers
 
-instead of:
+utilities
 
-```text
-Huge number of low-value experiments
-```
+new helper modules
 
-Think in terms of:
+instead of changing existing experiment code.
 
-```text
-Must-have
-Should-have
-Nice-to-have
-```
-
-Avoid exhaustive search.
+Backward compatibility must be preserved.
 
 ---
 
-## 4. Dataset-Aware Recommendations
+# SELF REVIEW
 
-Very important.
+After finishing the implementation,
 
-The dataset characteristics are:
+perform a complete code review.
 
-- Vietnamese reviews
-- Text mainly Vietnamese
-- User-generated and noisy
-- Images are noisy and heterogeneous
-- One review contains multiple images
-- Text modality is generally more reliable than image modality
+Check
 
-Therefore, recommend components based on the dataset characteristics.
+- folder structure
+- imports
+- path handling
+- notebook execution order
+- code duplication
+- naming consistency
+- logging consistency
+- artifact saving
+- compatibility with current experiments
+- compatibility with future XAI phases
+- maintainability
+- reproducibility
 
-Do not recommend models simply because they are popular.
+If any issue is found,
 
-Always explain WHY.
+fix it before finishing.
+
+Do NOT execute the notebook.
+
+Only review the implementation logic.
+
+Repeat the review until the implementation is technically sound, production-ready, and fully aligned with the current codebase.
+
+'''
+
+# IMPLEMENTATION NOTES
+
+After completing the implementation, generate one additional document:
+
+```text
+IMPLEMENTATION_NOTES.md
+```
+
+This document is intended for future maintenance, reproducibility, and Phase 2–8 development.
+
+It should briefly summarize the implementation decisions instead of repeating the proposal.
+
+Include the following sections.
 
 ---
 
-## 5. Text Branch Recommendations
+## 1. Proposal Compliance
 
-Prioritize:
+Clearly list
 
-### P0
+which parts were implemented exactly as specified in the proposal.
 
-```text
-PhoBERT
-ViDeBERTa / ViBERT
-```
-
-### P1
+Example
 
 ```text
-XLM-R
-ViSoBERT
-mDeBERTa-v3
-```
+✔ load_model() implemented exactly as proposal
 
-### P2
+✔ save_figure() implemented exactly as proposal
 
-Other multilingual models
-
-Explain why each model is suitable.
-
-Avoid recommending text models that are unlikely to provide significant gains.
-
----
-
-## 6. Image Branch Recommendations
-
-Considering:
-
-- noisy images
-- moderate dataset size
-- multiple images per review
-
-Prioritize:
-
-### P0
-
-```text
-ConvNeXt
-Swin-B
-```
-
-### P1
-
-```text
-SigLIP
-EfficientNet-B3
-```
-
-### P2
-
-```text
-EVA-CLIP
-ViT-L
-MobileViT
-```
-
-High-risk:
-
-large CLIP variants.
-
-Avoid suggesting expensive models with low expected return.
-
-Explain why.
-
----
-
-## 7. Fusion Recommendations
-
-Because image modality is noisy, prioritize:
-
-### P0
-
-```text
-Concat + MLP
-GMU
-```
-
-### P1
-
-```text
-FiLM
-```
-
-### P2
-
-```text
-Cross-Attention
-```
-
-Cross-Attention should be marked:
-
-```text
-High-risk
-Requires architecture refactoring
-Needs token-level and patch-level features
-Expensive
-```
-
-Do not place Cross-Attention in P0.
-
----
-
-## 8. Loss Function Recommendations
-
-Prioritize:
-
-### P0
-
-```text
-MSE
-Huber
-```
-
-### P1
-
-```text
-Weighted Huber
-SmoothL1
-```
-
-### P2
-
-```text
-Uncertainty-weighted multitask loss
-```
-
-Do NOT recommend:
-
-```text
-Focal Loss
-Weighted Cross Entropy
-```
-
-unless auxiliary classification heads are introduced.
-
-Explain why.
-
----
-
-## 9. Multi-image Aggregation
-
-Because one review contains multiple images, explicitly include:
-
-### P0
-
-```text
-Mean Pooling across image embeddings
-```
-
-### P1
-
-```text
-Attention Pooling across image embeddings
-```
-
-Avoid overly complicated aggregation methods.
-
----
-
-## 10. Minimum Viable Experiment Plan
-
-Create a section:
-
-```text
-Minimum Viable Experiment Plan
-```
-
-containing only P0 experiments.
-
-The goal is:
-
-```text
-Finish the thesis even with limited GPU budget.
-```
-
-Prefer:
-
-```text
-10–15 experiments maximum.
+✔ verification notebook follows proposal workflow
 ```
 
 ---
 
-## 11. Extended Experiment Plan
+## 2. Proposal Deviations
 
-Create another section:
+List every place where the proposal could NOT be followed exactly.
+
+For each deviation explain
+
+- proposal requirement
+- actual implementation
+- why the proposal does not match the current codebase
+- why the chosen implementation is better
+
+---
+
+## 3. Engineering Decisions
+
+Document every important implementation decision made during development.
+
+Examples
+
+- utility structure
+- wrapper organization
+- hook location
+- artifact naming
+- logging strategy
+- folder organization
+- notebook workflow
+- helper function design
+
+These decisions should help future developers understand the implementation philosophy.
+
+---
+
+## 4. Assumptions
+
+Clearly state every assumption used during implementation.
+
+Examples
+
+- expected checkpoint format
+- expected folder structure
+- expected experiment outputs
+- expected config format
+- expected dataset format
+
+The assumptions should be easy to verify later.
+
+---
+
+## 5. Compatibility with Existing Codebase
+
+Describe
+
+how the implementation integrates with
+
+- current experiments
+- current notebooks
+- current utilities
+- current folder organization
+
+Explain whether any backward compatibility considerations were required.
+
+---
+
+## 6. Reusable Components for Future Phases
+
+List every reusable component created in Phase 1.
+
+Examples
 
 ```text
-Extended Experiment Plan
+load_model()
+
+load_single_sample()
+
+get_prediction()
+
+save_figure()
+
+save_raw_values()
+
+config.py
+
+utils.py
+
+verification notebook
 ```
 
-containing:
+Explain briefly how each component will be reused in
 
-P1 and P2 experiments.
+Phase 2
 
-These experiments are optional and should only be trained if compute resources permit.
+Phase 3
 
----
+...
 
-## 12. Add Risk Level
-
-Every experiment should contain:
-
-```text
-Risk Level:
-Low
-Medium
-High
-```
-
-High-risk experiments:
-
-- Cross-Attention
-- EVA-CLIP
-- Large CLIP variants
-- Uncertainty-weighted multitask loss
+Phase 8.
 
 ---
 
-## 13. Strengthen Research Philosophy
+## 7. Suggested Improvements
 
-Make the proposal easier to present to lecturers.
+If you found opportunities to improve the implementation
 
-Clearly explain:
+without breaking compatibility,
 
-### Why sequential ablation is used.
+document them here instead of modifying the code automatically.
 
-### Why full factorial search is avoided.
-
-### Why promising full combinations are evaluated afterwards.
-
-### Why some models are prioritized over others.
-
-### Why text is expected to be more reliable than image.
-
-### Why adaptive fusion methods are important.
-
-### Why Huber loss is expected to help.
-
-### Why XAI should only be run after selecting the final model.
-
-The reader should understand:
-
-```text
-not only WHAT will be done,
-but WHY it will be done.
-```
+These improvements can be considered in future refactoring.
 
 ---
 
-## 14. Improve Readability
+## 8. Implementation Summary
 
-Make the proposal:
+Write a concise one-page summary describing
 
-- professional
-- coherent
-- logically structured
-- thesis-ready
-- easy for AI coding agents to follow
+- what was implemented
+- what remains for later phases
+- whether Phase 1 is fully ready for Phase 2
 
-Avoid huge blocks of vague recommendations.
-
-Use:
-
-- tables
-- experiment IDs
-- priorities
-- decision rules
-- expected conclusions
-
----
-
-# CONSTRAINTS
-
-Do not rewrite the whole proposal unnecessarily.
-
-Preserve the existing philosophy and good ideas.
-
-Refine and improve them.
-
-Avoid generating hundreds of experiments.
-
-Prefer practical and high-value experiments.
-
-Recommendations must be grounded in:
-
-- current codebase
-- dataset characteristics
-- compute constraints
-- research value
-
-Do not recommend models that are unlikely to improve performance significantly but require excessive training cost.
-
-Do not hallucinate unsupported claims.
-
-If something is uncertain, explicitly write:
-
-```text
-Must be verified in current codebase.
-```
-
----
-
-# FORMAT PRINCIPLE
-
-The final @proposal.md should read like a professional research methodology document.
-
-It should provide:
-
-- clear philosophy
-- clear priorities
-- concrete trainable experiments
-- implementation-ready details
-- reproducibility guidelines
-- practical experiment order
-- risk assessment
-- expected conclusions
-
-A future AI coding agent should be able to read the proposal and directly implement the experiments with minimal human intervention.
+The goal is that another developer (or another AI Coding model) can read only this document and immediately understand the implementation status.
