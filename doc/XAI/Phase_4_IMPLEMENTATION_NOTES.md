@@ -1,129 +1,90 @@
-# Phase 4: Fusion-level SHAP Analysis — Implementation Notes
+# Phase 4: Fusion-level SHAP Analysis — Implementation Notes (V2)
 
-## 1. What Was Implemented
-
-| Item | Status |
-|---|---|
-| `xai/shap_explainer.py` | Implemented |
-| `FusionHeadWrapper` class | Implemented — wraps model.head + score_index |
-| `extract_fused_embeddings()` | Implemented — forward_pre_hook on model.head |
-| `select_background()` | Implemented — random sample from validation embeddings |
-| `compute_shap_values()` | Implemented — DeepExplainer primary |
-| `modality_contribution()` | Implemented — text-origin (0:512) vs image-origin (512:1024) |
-| `additivity_check()` | Implemented — verifies prediction ≈ base + sum(shap) |
-| `plot_modality_contribution()` | Implemented — grouped bar chart, 5 targets |
-| `SHAPExplainer` class | Implemented — high-level orchestrator |
-| `run_ablation_check()` | Implemented — zero-out text/image dims |
-| Phase 4 notebook | Implemented with 15-sample batch processing |
-
-## 2. Proposal Deviations
-
-### 2.1 Experiment ID: EXP_060A instead of EXP_050C
-
-- **Proposal:** References `EXP_050C` throughout.
-- **Actual:** Uses `EXP_060A_bestsequential_full_configuration` everywhere.
-- **Why:** EXP_060A is the current best experiment used by all previous phases. EXP_050C is outdated.
-
-### 2.2 No separate `shap_config.py`
-
-- **Proposal:** Create `xai/shap_config.py` for SHAP-specific configuration.
-- **Actual:** SHAP constants (text_dim=512, background_size=100) are defined in `shap_explainer.py` itself, with overridable parameters.
-- **Why:** Phases 2 and 3 established the pattern of keeping method-specific constants inside the explainer module, not in separate config files. The shared constants (TARGET_NAMES, FACTOR_NAMES, etc.) are already in `xai/config.py`.
-
-### 2.3 No modality-level KernelExplainer
-
-- **Proposal:** Implement 2-feature KernelExplainer as supplementary validation.
-- **Actual:** Implemented ablation check instead (zero-out text/image dims).
-- **Why:** Ablation provides cleaner modality importance evidence without the complexity of a second SHAP explainer. It directly answers "what happens when text/image features are removed?" which is more intuitive for thesis presentation. The ablation check is also faster and does not require the shap library.
-
-### 2.4 No beeswarm plots
-
-- **Proposal:** Generate beeswarm/summary plots at dataset level.
-- **Actual:** Focus on modality contribution charts and per-sample waterfall-style analysis.
-- **Why:** Beeswarm plots for 1024 anonymous dimensions provide little interpretable insight. The key thesis question is "which modality dominates per target?" — answered by the modality contribution summary chart.
-
-## 3. Technical Decisions
-
-### 3.1 Forward pre-hook on model.head
-The fused vector is captured using `model.head.register_forward_pre_hook()`. The pre-hook receives `(module, input_args)` where `input_args[0]` is the fused tensor [B, 1024]. This is the cleanest approach since `torch.cat` is a functional call that can't be hooked.
-
-### 3.2 DeepExplainer as primary method
-DeepExplainer is fast (gradient-based, no sampling) and well-suited for the MLP head. The head is a standard `Linear→ReLU→Dropout→Linear→ReLU→Linear` that DeepExplainer handles natively.
-
-### 3.3 Terminology: "text-origin" and "image-origin"
-All outputs use "text-origin" and "image-origin" rather than "text" and "image" to acknowledge that cross-attended features contain information from both modalities.
-
-### 3.4 Graceful shap import
-The module handles `ImportError` for the `shap` library gracefully, printing an install instruction.
-
-## 4. Assumptions
-
-- Model is CrossAttentionFusion with head = Sequential(1024→512→ReLU→DO→512→256→ReLU→256→5)
-- Fused vector is [B, 1024] with text-origin in dims 0:512, image-origin in dims 512:1024
-- model.eval() is called before any SHAP computation (disables Dropout)
-- Background samples are from the validation set (not training set) to avoid data leakage
-- DeepExplainer handles the MLP head correctly (all operations are differentiable)
-
-## 5. Files Created
-
-| File | Description |
-|---|---|
-| `xai/shap_explainer.py` | Core SHAP module: FusionHeadWrapper, embedding extraction, SHAP computation, modality analysis, ablation, plotting |
-| `xai/notebooks/Phase4_SHAP.ipynb` | Interactive notebook with embedding extraction, SHAP analysis, modality contribution, ablation |
-| `doc/XAI/Phase_4_IMPLEMENTATION_NOTES.md` | This document |
-
-## 6. Files Modified
-
-None. No existing files were modified.
-
-## 7. Reusable Components for Later Phases
-
-| Component | Reusable by |
-|---|---|
-| `extract_fused_embeddings()` | Phase 6 (Case Studies) — extract embeddings for selected samples |
-| `modality_contribution()` | Phase 6 — compute text/image balance for case study panels |
-| `FusionHeadWrapper` | Phase 5 (LIME) — if LIME is applied at the fusion level |
-| `plot_modality_contribution()` | Phase 8 (Thesis Visualization) — publication-quality modality charts |
-| `run_ablation_check()` | Phase 6 — ablation as cross-method validation |
-
-## 8. Known Limitations
-
-1. **Cross-attention mixing:** Text-origin features contain image information and vice versa. The grouping is by query origin, not by pure modality content.
-2. **DeepExplainer approximation:** SHAP values are approximate (DeepLIFT-based), not exact Shapley values. Acknowledged in thesis methodology.
-3. **Background sensitivity:** Results depend on background sample selection. The 100-sample random selection from validation set is standard but not exhaustive.
-4. **No per-feature interpretation:** Individual dimensions of the 1024-d fused vector don't have semantic labels. Only grouped modality analysis is interpretable.
-
-## 9. API Fix: Plotting Functions
-
-### Root Cause
-The initial `plot_modality_contribution()` and `plot_modality_single_target()` had `save_path: str` as a **required** positional argument. This made it impossible to call them without saving — breaking the `fig = plot_xxx(...); plt.show()` pattern used throughout the notebook.
-
-Additionally, `plot_modality_contribution()` only accepted `List[Dict]` but the notebook passed `Dict[str, Dict]` (keyed by factor name), causing a secondary TypeError.
-
-### API Change
-Both plotting functions now have:
-- `save_path: Optional[str] = None` — optional, defaults to None
-- Return type changed from `str` to `Figure` — always returns the matplotlib Figure
-- If `save_path` is provided: saves figure, prints path, closes figure, returns Figure
-- If `save_path` is None: returns Figure without saving (caller can `plt.show()`)
-- `plot_modality_contribution()` now accepts both `List[Dict]` and `Dict[str, Dict]` for contributions
-
-### Notebook Fixes
-- Step 11: now calls `plot_modality_contribution()` without save_path (display-only)
-- Step 12: fixed ablation dict keys (`text_zeroed_prediction`, `text_drop_pct` instead of `text_drop`)
-- Steps 14, 15, 17: fixed aggregate access (it's a list indexed by position, not a dict by factor name)
-
-### Compatibility
-This is backward compatible — all internal callers in `SHAPExplainer.explain_sample()` and `explain_batch()` still pass `save_path` explicitly and work identically.
+Updated for the **token × patch CrossAttentionFusion** architecture on branch `xai-v3`.
 
 ---
 
-## 10. Future Improvements
+## 1. Proposal Compliance
 
-1. **Background stability test:** Compare results with 50, 100, 200 background samples.
-2. **Error-stratified analysis:** Compare modality contribution for correct vs. incorrect predictions.
-3. **Per-target waterfall plots:** Using shap.Explanation objects for detailed feature-level views.
+| Item | Status | Notes |
+|---|---|---|
+| `xai/shap_explainer.py` | Unchanged | All functions correct for new architecture |
+| `FusionHeadWrapper` class | Unchanged | Wraps model.head + score_index |
+| `extract_fused_embeddings()` | Unchanged | forward_pre_hook on model.head |
+| `select_background()` | Unchanged | Random sample from validation embeddings |
+| `compute_shap_values()` | Unchanged | DeepExplainer primary |
+| `modality_contribution()` | Unchanged | text-origin (0:512) vs image-origin (512:1024) |
+| `additivity_check()` | Unchanged | Verifies prediction ≈ base + sum(shap) |
+| `plot_modality_contribution()` | Unchanged | Grouped bar chart, 5 targets |
+| `SHAPExplainer` class | Unchanged | High-level orchestrator |
+| `run_ablation_check()` | Unchanged | Zero-out text/image dims |
+| Phase 4 notebook | **Updated** | Branch → `xai-v3` |
 
-## 10. Migration Note
+---
 
-The proposal references `EXP_050C` as the best experiment. This has been replaced with `EXP_060A_bestsequential_full_configuration` throughout the implementation to match all previous phases (1-3) which already use this experiment. The model architecture and fusion type remain identical (CrossAttentionFusion + LogCosh).
+## 2. Differences from V1
+
+### 2.1 Branch updated
+
+All notebook clone cells use `xai-v3` (was `xai-v2`).
+
+### 2.2 Zero code changes to `shap_explainer.py`
+
+The SHAP implementation operates on the fused vector `[B, 1024]` and the prediction head `model.head`. Both are **unchanged** by the architecture redesign. The cross-attention redesign only changed how the fused vector is computed internally (token×patch attention instead of single-vector attention), but its shape, structure, and the head that processes it are identical.
+
+---
+
+## 3. Cross-Attention V3 Compatibility
+
+### Why `shap_explainer.py` needed no changes
+
+SHAP attaches to the **prediction head** via a forward pre-hook on `model.head`. The fused vector captured by this hook is always `[B, 1024]` regardless of how it was computed upstream:
+
+- **Old architecture:** `cat(squeeze(t_out[B,1,512]), squeeze(i_out[B,1,512]))` → `[B, 1024]`
+- **New architecture:** `cat(masked_mean(t_out[B,T,512]), masked_mean(i_out[B,P,512]))` → `[B, 1024]`
+
+Same output dimension, same head, same SHAP methodology.
+
+### What IS different (behavioral, not code)
+
+The fused embedding now contains richer cross-modal interactions because each text token attended to all image patches (and vice versa). This may produce slightly different SHAP values and modality contribution percentages compared to V1, but the implementation is unchanged.
+
+---
+
+## 4. Engineering Decisions
+
+- Forward pre-hook on `model.head` captures fused vector
+- DeepExplainer as primary SHAP method (fast, gradient-based)
+- "text-origin" / "image-origin" terminology acknowledges cross-modal mixing
+- Ablation check (zero-out dims) as complementary validation
+- Graceful `shap` import with install instructions
+
+---
+
+## 5. Compatibility with Future Phases
+
+| Phase | Status | Notes |
+|---|---|---|
+| Phase 6 (Case Study) | Compatible | Artifact format unchanged |
+| Phase 7 (Report) | Compatible | Modality contribution CSV format unchanged |
+| Phase 8 (Thesis Viz) | Compatible | Figure format unchanged |
+
+---
+
+## 6. Remaining Limitations
+
+1. **Cross-attention mixing:** Text-origin features contain image information and vice versa.
+2. **DeepExplainer approximation:** Not exact Shapley values.
+3. **Background sensitivity:** Results depend on background sample selection.
+4. **No per-feature interpretation:** Only grouped modality analysis is interpretable.
+
+---
+
+## 7. Summary
+
+### V2 changes
+- Notebook: branch → `xai-v3`
+- Python module: **zero changes**
+
+### Ready for use?
+**Yes.** The fused vector `[B, 1024]` and prediction head are unchanged. Re-run on Colab to capture new embeddings from the redesigned architecture.
