@@ -74,24 +74,58 @@ ASPECT_KEYWORDS = {
 # ══════════════════════════════════════════════════════════════════════════════
 
 def check_sample_artifacts(sample_id: str, xai_dir: str) -> Dict[str, Any]:
-    """Check which XAI phases have artifacts for a given sample.
+    """Check which XAI phases have actual artifact files for a given sample.
+
+    Checks for specific expected files, not just directory existence.
 
     Args:
         sample_id: Sample identifier, e.g. 'sample_0042'.
         xai_dir: Base XAI directory, e.g. '{exp_dir}/xai'.
 
     Returns:
-        Dict with 'gradcam', 'attention', 'shap', 'lime' (bool)
+        Dict with per-phase availability (bool), file paths found,
         and 'completeness' (float 0.0-1.0).
     """
-    phases = ['gradcam', 'attention', 'shap', 'lime']
     result = {}
     found = 0
-    for phase in phases:
-        exists = os.path.isdir(os.path.join(xai_dir, phase, sample_id))
-        result[phase] = exists
-        found += int(exists)
-    result['completeness'] = found / len(phases)
+
+    def _check(phase, patterns):
+        """Check if any of the expected files exist for a phase."""
+        phase_dir = os.path.join(xai_dir, phase, sample_id)
+        if not os.path.isdir(phase_dir):
+            return False, []
+        existing = []
+        for pat in patterns:
+            p = os.path.join(phase_dir, pat)
+            if os.path.isfile(p):
+                existing.append(p)
+        return len(existing) > 0, existing
+
+    # Grad-CAM: at least one overlay file
+    gc_patterns = [f'gradcam_img0_{f}.png' for f in FACTOR_NAMES]
+    gc_patterns.append('gradcam_5target_comparison.png')
+    gc_ok, gc_files = _check('gradcam', gc_patterns)
+    result['gradcam'] = gc_ok
+
+    # Attention: word importance bar or heatmap
+    at_patterns = ['cls_importance_word_bar.png', 'cls_importance_subword_bar.png',
+                   'attention_layer11_mean_heatmap.png', 'word_importance.json']
+    at_ok, at_files = _check('attention', at_patterns)
+    result['attention'] = at_ok
+
+    # SHAP: modality contribution chart or JSON
+    sh_patterns = ['shap_modality_contribution.png', 'shap_modality_contribution.json']
+    sh_ok, sh_files = _check('shap', sh_patterns)
+    result['shap'] = sh_ok
+
+    # LIME: at least one image or text explanation
+    lm_patterns = [f'{sample_id}_lime_image_{f}_positive.png' for f in FACTOR_NAMES]
+    lm_patterns += [f'{sample_id}_lime_text_{f}_bar.png' for f in FACTOR_NAMES]
+    lm_ok, lm_files = _check('lime', lm_patterns)
+    result['lime'] = lm_ok
+
+    found = sum(int(result[p]) for p in ['gradcam', 'attention', 'shap', 'lime'])
+    result['completeness'] = found / 4
     return result
 
 
@@ -179,7 +213,10 @@ def compute_selection_score(
     else:
         mb = 1.0
 
-    ec = max(0.25, artifact_info.get('completeness', 0.0))
+    ec = artifact_info.get('completeness', 0.0)
+    # Heavily penalize samples with no artifacts at all
+    if ec == 0.0:
+        return 0.0
     return float(pq * vr * tr * mb * ec)
 
 
@@ -233,10 +270,16 @@ def select_cases(
 
     raw: Dict[str, List[Tuple[int, float, str]]] = {}
 
+    # Helper: skip samples with zero artifacts
+    def _has_artifacts(idx):
+        return sd[idx]['art']['completeness'] > 0
+
     # CORRECT: all errors < threshold
     for thr in [0.3, 0.5, 0.8]:
         cands = []
         for idx, d in sd.items():
+            if not _has_artifacts(idx):
+                continue
             errs = _get_errors(d['row'])
             if all(e < thr for e in errs):
                 cands.append((idx, _score(idx, 'correct'),
@@ -249,6 +292,8 @@ def select_cases(
     for thr in [2.0, 1.5, 1.0]:
         cands = []
         for idx, d in sd.items():
+            if not _has_artifacts(idx):
+                continue
             errs = _get_errors(d['row'])
             mx = max(errs)
             if mx > thr:
@@ -263,6 +308,8 @@ def select_cases(
     for thr in [65.0, 55.0, 50.0]:
         cands = []
         for idx, d in sd.items():
+            if not _has_artifacts(idx):
+                continue
             sh = d['shap']
             if not sh:
                 continue
@@ -281,6 +328,8 @@ def select_cases(
     for thr in [55.0, 50.0, 45.0]:
         cands = []
         for idx, d in sd.items():
+            if not _has_artifacts(idx):
+                continue
             sh = d['shap']
             if not sh:
                 continue
@@ -298,6 +347,8 @@ def select_cases(
     # CONFLICT: signed SHAP text/image push opposite + moderate error
     cands = []
     for idx, d in sd.items():
+        if not _has_artifacts(idx):
+            continue
         sh = d['shap']
         if not sh:
             continue
@@ -315,6 +366,8 @@ def select_cases(
     # DIFFICULT: no keywords for a target but model predicts well
     cands = []
     for idx, d in sd.items():
+        if not _has_artifacts(idx):
+            continue
         tl = d['text'].lower()
         errs = _get_errors(d['row'])
         df_facts = [f for fi, f in enumerate(FACTOR_NAMES)
@@ -329,6 +382,8 @@ def select_cases(
     # AGREEMENT: low error + balanced SHAP
     cands = []
     for idx, d in sd.items():
+        if not _has_artifacts(idx):
+            continue
         me = float(np.mean(_get_errors(d['row'])))
         sh = d['shap']
         if me > 0.5 or not sh:
