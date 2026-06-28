@@ -1,0 +1,88 @@
+<mxfile host="65bd71144e">
+    <diagram id="nLBIqP8P3t8KW6oajICy" name="Page-1">
+        <mxGraphModel dx="678" dy="294" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Pipeline Xử Lý Dữ Liệu" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="20" width="1200" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="phase1_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="80" width="250" height="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="phase1_title" value="BƯỚC 1: THU THẬP DỮ LIỆU" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=1;fontSize=13;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="88" width="230" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="foody" value="Foody.vn" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="125" width="120" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="crawl_rest" value="Crawl 300 nhà hàng&lt;br&gt;restaurant_id, name, address" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="200" width="170" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="crawl_rev" value="Crawl 11.111 reviews thô&lt;br&gt;comment, food/price/atmos/service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="265" width="170" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="crawl_img" value="Crawl 24.599 URLs ảnh&lt;br&gt;(review images)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="330" width="170" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="phase2_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="310" y="80" width="260" height="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="phase2_title" value="BƯỚC 2: LÀM SẠCH DỮ LIỆU" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=1;fontSize=13;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="315" y="88" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="clean_tech" value="Lọc kỹ thuật&lt;br&gt;• Bỏ review thiếu rating&lt;br&gt;• Normalize text encoding&lt;br&gt;• Dedup restaurant_id" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="325" y="130" width="165" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="clean_content" value="Lọc nội dung&lt;br&gt;• Bình luận quá ngắn (&lt;5 từ)&lt;br&gt;• Emoji-only, spam&lt;br&gt;• Tiếng Việt không dấu nặng" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="325" y="225" width="165" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="clean_norm" value="Chuẩn hóa văn bản&lt;br&gt;• comment_clean&lt;br&gt;• Tách dấu, lowercase&lt;br&gt;• Remove HTML" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="325" y="320" width="165" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="phase3_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="590" y="80" width="260" height="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="phase3_title" value="BƯỚC 3: SINH NHÃN" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=1;fontSize=13;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="595" y="88" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="label_aspect" value="Điểm khía cạnh (nguồn gốc)&lt;br&gt;food_score: Foody rating&lt;br&gt;price_score: Foody rating&lt;br&gt;atmosphere_score&lt;br&gt;service_score" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="605" y="130" width="185" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="label_rule" value="Phân tích ngữ nghĩa (Rule Engine)&lt;br&gt;• Phân tích từ khóa tích cực (+điểm)&lt;br&gt;• Phân tích từ khóa tiêu cực (-điểm)&lt;br&gt;• Lưu vết lý do điều chỉnh" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="605" y="235" width="185" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="label_overall" value="Tính điểm tổng thể (overall_score)&lt;br&gt;• Dựa trên điểm TB 4 khía cạnh&lt;br&gt;• Cộng trừ điểm từ Rule Engine&lt;br&gt;• Giới hạn trong thang điểm 0-10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="605" y="340" width="185" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="phase4_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="870" y="80" width="250" height="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="phase4_title" value="BƯỚC 4: PHÂN CHIA TẬP" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=1;fontSize=13;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="875" y="88" width="240" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="split_filter" value="Lọc review có ảnh&lt;br&gt;60.3% có ảnh&lt;br&gt;→ 6.000 reviews × images&lt;br&gt;→ Gom nhóm theo review_id" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="885" y="130" width="165" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="split_strat" value="Stratified split (seed=42)&lt;br&gt;theo restaurant_id&lt;br&gt;Tránh data leakage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="885" y="225" width="165" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="split_combined" value="Chia train : val : test&lt;br&gt;(4.800 : 600 : 600)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="885" y="300" width="165" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="dl_simple" value="Tải &amp; Tiền xử lý ảnh&lt;br&gt;• Tải ảnh từ URL đã lọc&lt;br&gt;• Resize về 224×224 pixels&lt;br&gt;• Chuẩn hóa theo chuẩn ImageNet" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;fontSize=11;align=left;spacingLeft=10;" parent="1" vertex="1">
+                    <mxGeometry x="885" y="370" width="165" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="arr_p1p2" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=3;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="phase1_bg" target="phase2_bg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arr_p2p3" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=3;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="phase2_bg" target="phase3_bg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arr_p3p4" value="" style="edgeStyle=orthogonalEdgeStyle;strokeWidth=3;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="phase3_bg" target="phase4_bg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
