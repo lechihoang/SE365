@@ -116,6 +116,19 @@ class ExplanationAgent:
         result.setdefault('timestamp',
                           datetime.datetime.now().isoformat())
 
+        # 5b. Override evidence_completeness with ground truth
+        #     (LLM may guess wrong about which artifacts exist)
+        ec = {
+            'gradcam': 'gradcam' in evidence,
+            'attention': 'attention' in evidence,
+            'cross_attention': 'cross_attention' in evidence,
+            'shap': 'shap' in evidence,
+            'lime': 'lime' in evidence,
+        }
+        total = sum(ec.values())
+        ec['total'] = f'{total}/5'
+        result['evidence_completeness'] = ec
+
         # 6. Validate
         warnings = self.validator.validate(result, evidence)
         if warnings:

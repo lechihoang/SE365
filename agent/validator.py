@@ -31,26 +31,41 @@ class OutputValidator:
             return warnings
 
         warnings.extend(self._check_schema(output))
+        warnings.extend(self._check_all_targets(output))
         warnings.extend(self._check_score_levels(output))
+        warnings.extend(self._check_required_fields(output))
+        warnings.extend(self._check_evidence_completeness(output))
+        warnings.extend(self._check_limitations(output))
         if evidence:
             warnings.extend(self._check_shap_grounding(output, evidence))
-        warnings.extend(self._check_required_fields(output))
 
         return warnings
 
     def _check_schema(self, output: Dict[str, Any]) -> List[str]:
-        """Validate against JSON schema using jsonschema if available."""
         try:
             import jsonschema
             jsonschema.validate(output, AGENT_OUTPUT_SCHEMA)
             return []
         except ImportError:
-            return ['jsonschema package not installed — schema check skipped']
+            return ['jsonschema not installed — schema check skipped']
         except jsonschema.ValidationError as e:
             return [f'Schema violation: {e.message}']
 
+    def _check_all_targets(self, output: Dict[str, Any]) -> List[str]:
+        """Verify all 5 targets are explained."""
+        warnings = []
+        scores = output.get('scores', {})
+        for factor in _FACTOR_NAMES:
+            if factor not in scores:
+                warnings.append(
+                    f'Missing score explanation for "{factor}" — '
+                    f'all 5 targets must be explained')
+            elif not scores[factor].get('explanation'):
+                warnings.append(
+                    f'Empty explanation for "{factor}"')
+        return warnings
+
     def _check_score_levels(self, output: Dict[str, Any]) -> List[str]:
-        """Check that score levels match the score values."""
         warnings = []
         scores = output.get('scores', {})
         for factor in _FACTOR_NAMES:
@@ -65,12 +80,36 @@ class OutputValidator:
                     f'score {entry["score"]:.1f} (expected "{expected}")')
         return warnings
 
+    def _check_required_fields(self, output: Dict[str, Any]) -> List[str]:
+        warnings = []
+        for field in ['summary', 'confidence']:
+            if not output.get(field):
+                warnings.append(f'Missing or empty: {field}')
+        if not output.get('method_agreement'):
+            warnings.append('Missing "method_agreement" section')
+        if not output.get('confidence_reasoning'):
+            warnings.append('Missing "confidence_reasoning"')
+        return warnings
+
+    def _check_evidence_completeness(self, output: Dict[str, Any]) -> List[str]:
+        ec = output.get('evidence_completeness')
+        if not ec:
+            return ['Missing "evidence_completeness" section']
+        return []
+
+    def _check_limitations(self, output: Dict[str, Any]) -> List[str]:
+        lims = output.get('limitations', [])
+        if not lims:
+            return ['No limitations listed — always required']
+        if len(lims) < 3:
+            return [f'Only {len(lims)} limitation(s) — recommend at least 3']
+        return []
+
     def _check_shap_grounding(
         self,
         output: Dict[str, Any],
         evidence: Dict[str, Any],
     ) -> List[str]:
-        """Check that SHAP percentages in output match input evidence."""
         warnings = []
         shap_evidence = evidence.get('shap')
         if not shap_evidence:
@@ -79,22 +118,11 @@ class OutputValidator:
         mod = output.get('modality_contribution', {})
         overall_shap = shap_evidence.get('overall', {})
         if mod and overall_shap:
-            claimed_text = mod.get('text_origin_pct', 0)
-            actual_text = overall_shap.get('text_pct', 0)
-            if abs(claimed_text - actual_text) > 5.0:
+            claimed = mod.get('text_origin_pct', 0)
+            actual = overall_shap.get('text_pct', 0)
+            if abs(claimed - actual) > 5.0:
                 warnings.append(
-                    f'Overall SHAP text_origin_pct mismatch: '
-                    f'claimed {claimed_text:.1f}% vs actual {actual_text:.1f}%')
+                    f'Overall SHAP mismatch: claimed text-origin '
+                    f'{claimed:.1f}% vs evidence {actual:.1f}%')
 
-        return warnings
-
-    def _check_required_fields(self, output: Dict[str, Any]) -> List[str]:
-        """Check that key fields are present and non-empty."""
-        warnings = []
-        for field in ['summary', 'confidence']:
-            if not output.get(field):
-                warnings.append(f'Missing or empty required field: {field}')
-        if not output.get('limitations'):
-            warnings.append('No limitations listed — agent should '
-                            'always include XAI limitations')
         return warnings

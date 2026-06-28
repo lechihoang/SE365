@@ -117,7 +117,28 @@ Optional fields:
 5. **Hallucination risk** — despite grounding rules, LLM output should be human-reviewed for thesis
 6. **Cost** — each API call costs tokens; batch mode uses `gpt-4o-mini` to reduce cost
 
-## 12. Future Improvements
+## 12. Output Quality Improvements (V2)
+
+Issues found during real testing and fixes applied:
+
+| # | Problem | Fix | Files Changed |
+|---|---|---|---|
+| 1 | Schema `level` enum violation — LLM returned Vietnamese display text instead of machine-readable enum | Added `very_poor`/`poor` levels, added `level_display()` helper, report generator renders display text separately | `output_schema.py`, `report_generator.py`, `prompt_builder.py` |
+| 2 | Not all 5 targets explained | Schema now requires all 5 (`required: [food, price, atmos, service, overall]`), prompt explicitly demands all 5, validator checks for missing targets | `output_schema.py`, `prompt_builder.py`, `validator.py` |
+| 3 | Misleading score wording (7.5 called "trung bình") | Revised score ranges: 0-2 very_poor, 2-4 poor, 4-6 average, 6-8 good, 8-10 excellent | `output_schema.py`, `prompt_builder.py` |
+| 4 | Hallucinated explanations (price "reasonable" when review never mentions price) | Strengthened anti-hallucination rules in system prompt — explicit "NEVER invent evidence" instruction with examples | `prompt_builder.py` |
+| 5 | Cross-attention too generic | Prompt now instructs to reference actual token names, patch coordinates (row,col), and attention scores | `prompt_builder.py` |
+| 6 | SHAP percentages missing target context | Prompt requires per-target SHAP breakdown, schema adds `per_target` field in `modality_contribution` | `prompt_builder.py`, `output_schema.py` |
+| 7 | Weak limitations section | Prompt requires at least 3 meaningful limitations with specific required items, validator checks count | `prompt_builder.py`, `validator.py` |
+| 8 | No evidence completeness section | Added `evidence_completeness` field (gradcam/attention/cross_attention/shap/lime booleans + total), report generator renders it, `__init__.py` overrides with ground truth from evidence loader | `output_schema.py`, `__init__.py`, `report_generator.py`, `validator.py` |
+| 9 | Proposal compliance gaps | Added missing fields: `per_target` SHAP, `confidence_reasoning`, `evidence_completeness` | All schema/prompt/validator files |
+| 10 | Generic recommendations | Prompt now instructs: only suggest improvements directly supported by evidence, never recommend changes for topics not mentioned in review | `prompt_builder.py` |
+| 11 | Report sections incomplete | Markdown report now follows fixed 13-section order: Review → Predictions → GT → Summary → Scores (all 5) → Evidence Completeness → SHAP → Cross-Attention → Method Agreement → Limitations → Recommendations → Confidence → Warnings | `report_generator.py` |
+| 12 | No cross-method agreement section | Added `method_agreement` as required field, validator checks presence, report renders it | `prompt_builder.py`, `validator.py`, `report_generator.py` |
+| 13 | Arbitrary confidence | Prompt defines clear rules (high=4-5 methods+agreement, medium=2-3, low=0-1), added `confidence_reasoning` field, validator checks for its presence | `prompt_builder.py`, `output_schema.py`, `validator.py` |
+| 14 | Awkward Vietnamese translations of technical terms | Prompt explicitly lists English terms to keep: Grad-CAM, Cross-Attention, SHAP, LIME, text-origin, image-origin, token, patch | `prompt_builder.py` |
+
+## 13. Future Improvements
 
 - Vision mode: send Grad-CAM overlays to `gpt-4o` for richer visual description
 - Streaming: support streaming responses for interactive notebooks
