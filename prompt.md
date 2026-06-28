@@ -1,498 +1,601 @@
 # ROLE
 
-You are a Principal XAI Engineer, Senior PyTorch Debugging Engineer, and Research Software Architect.
+You are a Principal AI Research Scientist, Principal Software Architect, Senior Research Engineer, and experienced academic paper writer.
 
-You specialize in:
+You have extensive experience writing:
 
-- Grad-CAM
-- PyTorch hooks
-- timm Swin Transformer
-- Multimodal Deep Learning
-- Regression XAI
-- Debugging attribution methods
-- Research-grade notebook engineering
+- Scientific research reports
+- Undergraduate thesis reports
+- Progress reports
+- Software Engineering reports
+- AI/Deep Learning project reports
+- Explainable AI research papers
+
+You are also an experienced supervisor who understands how Vietnamese university research reports should be written.
+
+Your writing style must be:
+
+- professional
+- formal
+- technically accurate
+- well structured
+- academically rigorous
+- easy to review by lecturers
+- publication-quality
 
 ---
 
 # GOAL
 
-Read the entire codebase and all Phase 2 implementation files.
+Your task is to write the complete project progress report for our project.
 
-Diagnose why the Grad-CAM heatmaps for all 5 targets:
+The report must follow the structure required by the provided template.
 
-```text
-food_score
-price_score
-atmosphere_score
-service_score
-overall_satisfaction
-```
-
-look almost identical.
-
-Then fix the implementation if there is a bug or design issue.
-
-If the root cause cannot be diagnosed purely from code inspection, add diagnostic logging and sanity-check cells to the notebook so the cause can be identified when the notebook runs.
-
-After fixing, update the Phase 2 notebook so it runs Grad-CAM for **15 samples** instead of only 3 samples.
-
----
-
-# FILES TO READ FIRST
-
-Read the entire codebase.
-
-Especially read:
+The final output must be a Markdown document named:
 
 ```text
-Models/ImageModel.py
-Models/TextModel.py
-Models/CrossAttentionFusion.py
-Models/FusionModel.py
-Models/GMUFusion.py
-Models/GatedCrossModalFusion.py
-Models/FiLMFusion.py
-src/dataset.py
-main.py
-test.py
-xai/config.py
-xai/utils.py
-xai/gradcam_explainer.py
-xai/notebooks/Phase2_GradCAM.ipynb
-Phase_2_GradCAM_Proposal.md
-Phase_2_IMPLEMENTATION_NOTES.md
-Phase_2_FIX_REPORT.md
-Phase_1_IMPLEMENTATION_NOTES.md
+Nhom24_Progress_Report.md
 ```
 
-Understand exactly:
+The report must be written entirely in **Vietnamese**.
 
-- how ImageModel processes multi-image inputs
-- where Swin-B pooling happens
-- what tensor shape the target layer returns
-- whether hooks are attached before or after spatial pooling
-- how gradients flow from each target score back to the image encoder
-- whether each target actually produces different gradients
-- whether CAM normalization hides differences
-- whether CAMs are accidentally reused across targets
+It should be polished enough to be submitted directly to our lecturers without major editing.
 
 ---
 
-# CURRENT OBSERVATION
+# IMPORTANT
 
-Grad-CAM runs successfully.
+Before writing anything,
 
-However, for several samples, the heatmaps for:
+you MUST completely understand the project.
+
+Therefore,
+
+DO NOT start writing immediately.
+
+Follow the steps below.
+
+---
+
+# STEP 1 — READ THE ENTIRE CODEBASE
+
+Read the entire project codebase.
+
+Understand:
+
+- project goals
+- architecture
+- training pipeline
+- preprocessing
+- dataset
+- models
+- evaluation
+- experiment pipeline
+- XAI pipeline
+- AI Agent pipeline
+- output artifacts
+- folder structure
+- implementation details
+- current progress
+
+Read source code instead of guessing.
+
+Whenever architecture or workflow is unclear,
+
+trace the implementation until you understand it.
+
+---
+
+# STEP 2 — READ ALL PROJECT DOCUMENTATION
+
+Read every important documentation file in the repository.
+
+Especially:
 
 ```text
-Food
-Price
-Atmosphere
-Service
-Overall Satisfaction
+README.md
+
+Proposal_Multimodel.md
+
+AI_agent_proposal.md
+
+XAI_MIGRATION_REPORT.md
+
+Phase_1_*.md
+
+Phase_2_*.md
+
+Phase_3_*.md
+
+Phase_4_*.md
+
+Phase_5_*.md
+
+Phase_6_*.md
+
+AI_agent_IMPLEMENTATION_NOTES.md
+
+IMPLEMENTATION_NOTES.md
+
+REPORT/
+
+docs/
+
+reports/
 ```
 
-look almost identical.
+Read every proposal and implementation note that explains the project.
 
-This may mean one of the following:
-
-1. Implementation bug.
-2. Wrong target layer.
-3. Target-specific backward is not actually target-specific.
-4. CAMs are being reused accidentally.
-5. Gradients from all 5 outputs to the image branch are almost identical.
-6. Final Swin-B layer is too coarse or too close to global pooling.
-7. Min-max normalization makes weak target CAMs look artificially strong.
-8. The selected sample genuinely uses the same visual evidence for all targets.
-
-Your task is to determine which explanation is most likely.
+Treat these files as the primary project documentation.
 
 ---
 
-# DIAGNOSTIC PRIORITY
+# STEP 3 — READ THE REPORT TEMPLATE
 
-First, try to diagnose by reading the code.
-
-Only if static code inspection cannot prove the cause, add diagnostic logging/cells to the notebook.
-
-Do not blindly add logs before understanding the code.
-
----
-
-# REQUIRED DIAGNOSTIC CHECKS
-
-Add the following diagnostic checks to the Phase 2 notebook and/or `gradcam_explainer.py` as needed.
-
-## 1. Target score check
-
-For each sample, print the model predictions:
+Read carefully:
 
 ```text
-food_score
-price_score
-atmosphere_score
-service_score
-overall_satisfaction
+SE365 Template Report.md
 ```
 
-Verify that the 5 predicted scores are not all identical.
+Treat this file as the required report structure.
+
+Follow its chapter organization.
+
+However,
+
+improve the writing quality significantly.
+
+Do NOT merely fill placeholders.
+
+Produce a professional research report.
 
 ---
 
-## 2. Target-specific backward check
+# STEP 4 — UNDERSTAND CURRENT PROJECT STATUS
 
-For each target index:
+Determine exactly:
 
-```python
-target_score = preds[0, target_idx]
-target_score.backward()
-```
+- what has been completed
+- what is partially completed
+- what is still future work
 
-Print:
+Do NOT claim work that has not yet been implemented.
+
+The report must accurately reflect the current project status.
+
+For example,
+
+Phase 1–6 of XAI have already been implemented.
+
+Phase 7–8 are future work.
+
+The AI Agent has been implemented.
+
+Reflect this correctly.
+
+---
+
+# STEP 5 — WRITE THE REPORT
+
+Generate
 
 ```text
-target_idx
-target_name
-target_score
+Nhom24_Progress_Report.md
 ```
 
-Verify the correct target is selected each time.
+following the template structure.
+
+The report must read like a real scientific report.
+
+Avoid placeholder text.
+
+Avoid generic AI-generated writing.
+
+Write naturally and professionally.
 
 ---
 
-## 3. Gradient statistics per target
+# REPORT REQUIREMENTS
 
-For each target, compute gradient stats at the hooked image layer:
+## General
 
-```text
-grad_mean
-grad_std
-grad_abs_mean
-grad_abs_max
-nonzero_ratio
-```
+Write in Vietnamese.
 
-If all gradient stats are identical across 5 targets, investigate why.
+Formal academic writing.
 
----
+Consistent terminology.
 
-## 4. Gradient similarity matrix
+No bullet dumping unless appropriate.
 
-For one sample and one image, compute cosine similarity between flattened gradients of all 5 targets.
+Every chapter should have smooth transitions.
 
-Save/print a 5×5 matrix:
+Every figure must be referenced.
 
-```text
-Gradient Similarity Matrix
-```
+Every table must be referenced.
 
-Interpretation:
+Use numbered subsections.
 
-- similarity ≈ 1.0 for all pairs means image-branch gradients are nearly identical across targets
-- similarity clearly below 1.0 means targets are different, but visualization may hide differences
+Generate an automatically maintainable Table of Contents.
 
 ---
 
-## 5. Raw CAM similarity matrix
+## Cover Page
 
-Compute pairwise correlation between raw CAM arrays for all 5 targets.
+Generate a professional cover page.
 
-Save/print a 5×5 matrix:
+Replace placeholder project title with the actual project title.
 
-```text
-Raw CAM Correlation Matrix
-```
-
-Do this before overlay and before any visual formatting.
+Leave student information editable if unavailable.
 
 ---
 
-## 6. Raw CAM value range
+## Table of Contents
 
-For each target, print:
+Generate a complete TOC.
 
-```text
-cam_min
-cam_max
-cam_mean
-cam_std
-```
+Include chapter numbers.
 
-This checks whether min-max normalization makes weak/flat CAMs look artificially strong.
+Include subsection numbers.
 
 ---
 
-## 7. Target layer comparison
+## List of Figures
 
-Try multiple candidate target layers:
-
-```text
-image_model.encoder.norm
-image_model.encoder.layers[-1]
-image_model.encoder.layers[-1].blocks[-1]
-image_model.encoder.layers[-1].blocks[-1].norm2
-```
-
-Use only those that exist in the actual code.
-
-For each candidate layer, generate CAMs and compute target similarity.
-
-Select the best layer based on:
-
-- valid spatial feature map
-- nonzero gradients
-- target-specific differences
-- semantic plausibility
-- stability
-
-Do not assume `encoder.norm` is always best.
+Automatically generate figure captions.
 
 ---
 
-## 8. CAM reuse bug check
+## List of Tables
 
-Verify that the loop creates a new CAM for every:
-
-```text
-image_idx
-target_idx
-```
-
-Check that:
-
-- CAM arrays are not the same object
-- CAM arrays are not overwritten
-- saved filenames are unique
-- dictionary keys include both image_idx and target_idx
+Automatically generate table captions.
 
 ---
 
-## 9. Multi-image indexing check
+# Chapter 1 — Tổng quan đề tài
 
-Verify that when the model flattens images as `[B*N, C, H, W]`, the code slices the correct image index.
-
-For current batch size B=1, image index mapping is:
-
-```text
-flat_index = image_idx
-```
-
-But implement it explicitly and document it.
-
-If later batch size > 1, use:
-
-```text
-flat_index = batch_idx * max_images + image_idx
-```
-
----
-
-# FIX REQUIREMENTS
-
-After diagnosis, fix the root issue.
-
-Potential fixes may include:
-
-## If target layer is too late/coarse
-
-Update target layer selection to prefer the layer that gives the best target-specific Grad-CAM.
-
-Document why the new layer is better.
-
----
-
-## If gradients are actually identical
-
-Do not fake target specificity.
-
-Instead:
-
-- keep the implementation correct
-- add diagnostics showing gradient similarity
-- explain in notes that the image branch provides similar visual evidence for these targets
-- recommend using SHAP or text attribution for target-level differences
-
----
-
-## If normalization hides differences
-
-Save both:
-
-```text
-normalized CAM
-raw CAM
-```
-
-Also add optional fixed-scale visualization or side-by-side raw statistic reporting.
-
----
-
-## If CAMs are accidentally reused
-
-Fix the loop/storage/saving logic.
-
----
-
-## If wrong target is selected
-
-Fix target indexing immediately.
-
----
-
-# NOTEBOOK UPDATE REQUIREMENT
-
-Update:
-
-```text
-xai/notebooks/Phase2_GradCAM.ipynb
-```
-
-so that it runs Grad-CAM for **15 samples** instead of 3.
-
-The notebook should define:
-
-```python
-NUM_GRADCAM_SAMPLES = 15
-```
-
-and use this value consistently.
-
-Do not hardcode 15 in multiple places.
-
----
-
-# SAMPLE SELECTION REQUIREMENT
-
-Do not simply use the first 15 rows blindly if there is a better existing sample selection method.
-
-Implement a reasonable selection strategy:
-
-1. Include several high-confidence correct samples.
-2. Include several high-error samples.
-3. Include several multi-image samples.
-4. Include several samples with different dominant visual content if possible.
-
-If the notebook cannot implement this robustly yet, fall back to the first 15 test samples but clearly document this limitation.
-
----
-
-# OUTPUT REQUIREMENTS
-
-After the fix, the notebook should save:
-
-```text
-gradcam outputs for 15 samples
-diagnostic summary json
-gradient similarity matrices
-raw CAM similarity matrices
-target layer comparison results
-updated batch summary json
-```
-
-All outputs should be saved under the existing Phase 2 output folder, for example:
-
-```text
-/content/drive/MyDrive/SE365/experiments/EXP_060A_bestsequential_full_configuration/xai/gradcam/
-```
-
-Every saved file must print:
-
-```text
-Saved:
-<absolute path>
-```
-
----
-
-# IMPLEMENTATION NOTES
-
-After finishing, update or create:
-
-```text
-Phase_2_IMPLEMENTATION_NOTES.md
-```
-
-Add a new section:
-
-```text
-## Grad-CAM Target Similarity Diagnosis
-```
-
-Explain:
-
-- whether the issue was a bug or an expected behavior
-- what evidence supports the conclusion
-- which diagnostics were added
-- which target layer was selected
-- whether target-specificity improved
-- remaining limitations
-
----
-
-# FIX REPORT
-
-Create or update:
-
-```text
-Phase_2_FIX_REPORT.md
-```
+Write professionally.
 
 Include:
 
-1. Problem observed
-2. Root cause analysis
-3. Files modified
-4. Diagnostic checks added
-5. Fixes applied
-6. Remaining risks
-7. How to verify the fix by running the notebook
+- Bối cảnh
+- Động lực nghiên cứu
+- Thách thức
+- Research Gap
+- Mục tiêu nghiên cứu
+- Đóng góp
+- Phạm vi
+- Cấu trúc báo cáo
+
+Do not exaggerate contributions.
+
+Clearly distinguish:
+
+Current contribution
+
+Future work
 
 ---
 
-# QUALITY REQUIREMENTS
+# Chapter 2 — Công trình nghiên cứu liên quan
 
-The implementation must be:
+Organize by topic instead of paper-by-paper.
 
-- professional
-- reproducible
-- Colab-friendly
-- notebook-friendly
-- research-grade
-- thesis-ready
+Suggested sections:
 
-Do not break Phase 1.
+- Multimodal Learning
+- Vision-Language Models
+- Explainable AI
+- AI Agents for Explainability
+- Vietnamese Review Analysis
 
-Do not break existing experiment code.
+Summarize trends.
 
-Do not modify model weights.
+End with
 
-Do not retrain anything.
+Research Gap Summary.
 
-Do not use test results to select a new model.
+IMPORTANT:
 
-Only debug and improve the Grad-CAM implementation.
+Do NOT fabricate citations.
+
+If references cannot be verified from the repository,
+
+insert a clear TODO placeholder instead of inventing references.
 
 ---
 
-# FINAL SELF-REVIEW
+# Chapter 3 — Định nghĩa bài toán và bộ dữ liệu
 
-After making changes, perform a complete static review.
+Explain formally.
 
-Check:
+Include mathematical formulation.
 
-- imports
-- paths
-- notebook cell order
-- target indexing
-- target layer selection
-- hook cleanup
-- gradient zeroing
-- CAM storage keys
-- CAM file names
-- metadata completeness
-- diagnostics saving
-- 15-sample execution logic
-- compatibility with Phase 1 utilities
-- compatibility with future XAI phases
+Define:
 
-Fix any issue found before finishing.
+Input
+
+Output
+
+Prediction targets
+
+Dataset schema
+
+Dataset construction pipeline
+
+Label generation
+
+Data cleaning
+
+Dataset statistics
+
+Dataset split
+
+Illustrate the pipeline with Mermaid diagrams where appropriate.
+
+---
+
+# Chapter 4 — Phương pháp đề xuất
+
+This chapter should be the strongest chapter.
+
+Include:
+
+Overall architecture
+
+Training pipeline
+
+Inference pipeline
+
+Image branch
+
+Text branch
+
+Cross-Attention
+
+Fusion
+
+Prediction heads
+
+Loss functions
+
+Training strategy
+
+XAI pipeline
+
+AI Agent pipeline
+
+Use Mermaid diagrams extensively whenever they improve understanding.
+
+Suggested diagrams:
+
+- Overall system architecture
+- Training pipeline
+- Inference pipeline
+- XAI pipeline
+- AI Agent pipeline
+- Folder structure
+- Data flow
+- Component interactions
+
+Use colored Mermaid diagrams where appropriate.
+
+The diagrams should be presentation-quality.
+
+---
+
+# Chapter 5 — Thực nghiệm
+
+Describe:
+
+Dataset split
+
+Hardware
+
+Software
+
+Framework versions
+
+Hyperparameters
+
+Training strategy
+
+Evaluation metrics
+
+Baselines
+
+Experimental design
+
+Ablation strategy
+
+Reproducibility strategy
+
+---
+
+# Chapter 6 — Kết quả và bàn luận
+
+Summarize current experimental progress.
+
+Clearly distinguish:
+
+Completed experiments
+
+Current findings
+
+Preliminary observations
+
+Future experiments
+
+Do not fabricate numerical results.
+
+If certain experiments are not yet completed,
+
+state this explicitly.
+
+Include:
+
+Error analysis
+
+Case study
+
+XAI observations
+
+AI Agent observations
+
+Discussion
+
+Limitations
+
+---
+
+# Chapter 7 — Kết luận và hướng phát triển
+
+Summarize:
+
+Current achievements
+
+Current limitations
+
+Future work
+
+Future work should include:
+
+Phase 7
+
+Phase 8
+
+Further AI Agent improvements
+
+Deployment
+
+Human evaluation
+
+---
+
+# Mermaid Diagrams
+
+Whenever architecture or workflow appears,
+
+generate Mermaid diagrams.
+
+Examples include:
+
+```mermaid
+flowchart LR
+```
+
+```mermaid
+graph TD
+```
+
+```mermaid
+sequenceDiagram
+```
+
+```mermaid
+classDiagram
+```
+
+```mermaid
+erDiagram
+```
+
+Use them only where appropriate.
+
+Do not overuse them.
+
+The diagrams should be visually clean and understandable.
+
+---
+
+# Tables
+
+Use professional tables.
+
+Examples:
+
+Dataset statistics
+
+Hyperparameters
+
+Experimental settings
+
+Architecture comparison
+
+XAI methods
+
+AI Agent modules
+
+Completed milestones
+
+Future milestones
+
+---
+
+# Figures
+
+Whenever a figure should appear,
+
+insert a placeholder with caption.
+
+Example:
+
+```text
+Hình 4.3. Kiến trúc tổng thể của hệ thống.
+```
+
+or reference Mermaid diagrams directly.
+
+---
+
+# Writing Quality
+
+Avoid repetitive AI-style wording.
+
+Avoid generic statements.
+
+Prefer concise technical writing.
+
+Every section should explain WHY, not only WHAT.
+
+---
+
+# Consistency Check
+
+Before finishing,
+
+re-read the entire report.
+
+Verify:
+
+- chapter numbering
+- subsection numbering
+- terminology consistency
+- figure numbering
+- table numbering
+- Mermaid syntax
+- grammar
+- spelling
+- formatting
+- duplicate content
+- contradictory statements
+
+Revise until the report is internally consistent.
+
+---
+
+# FINAL OUTPUT
+
+Produce only:
+
+```text
+Nhom24_Progress_Report.md
+```
+
+The report should be complete, polished, and ready for submission.
+
+If any information cannot be determined from the codebase or documentation,
+
+leave an explicit TODO note instead of inventing content.
+
+Never fabricate experimental results or academic references.
