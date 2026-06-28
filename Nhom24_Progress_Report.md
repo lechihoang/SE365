@@ -80,9 +80,9 @@ Hệ thống Explainable AI bao gồm Grad-CAM, Self-Attention, Cross-Attention 
   - [1.11. Cấu trúc báo cáo](#111-cấu-trúc-báo-cáo)
 - [Chương 2. Công trình nghiên cứu liên quan](#chương-2-công-trình-nghiên-cứu-liên-quan)
   - [2.1. Phạm vi tổng quan](#21-phạm-vi-tổng-quan)
-  - [2.2. Multimodal Learning và taxonomy của fusion](#22-multimodal-learning-và-taxonomy-của-fusion)
-  - [2.3. Backbone thị giác](#23-backbone-thị-giác)
-  - [2.4. Backbone ngôn ngữ cho review tiếng Việt](#24-backbone-ngôn-ngữ-cho-review-tiếng-việt)
+  - [2.2. Backbone thị giác](#22-backbone-thị-giác)
+  - [2.3. Backbone ngôn ngữ cho review tiếng Việt](#23-backbone-ngôn-ngữ-cho-review-tiếng-việt)
+  - [2.4. Khối kết hợp đa phương thức (Fusion Module)](#24-khối-kết-hợp-đa-phương-thức-fusion-module)
   - [2.5. Multimodal Sentiment Analysis và Aspect-Based Analysis](#25-multimodal-sentiment-analysis-và-aspect-based-analysis)
   - [2.6. Attention và Cross-Attention](#26-attention-và-cross-attention)
   - [2.7. Explainable AI cho hệ thống đa phương thức](#27-explainable-ai-cho-hệ-thống-đa-phương-thức)
@@ -105,7 +105,7 @@ Hệ thống Explainable AI bao gồm Grad-CAM, Self-Attention, Cross-Attention 
   - [4.1. Kiến trúc tổng thể](#41-kiến-trúc-tổng-thể)
   - [4.2. Text Branch](#42-text-branch)
   - [4.3. Image Branch](#43-image-branch)
-  - [4.4. Các Fusion Mechanism](#44-các-fusion-mechanism)
+  - [4.4. Fusion Module](#44-fusion-module)
   - [4.5. Cross-Attention token–patch](#45-cross-attention-tokenpatch)
   - [4.6. Prediction Head và Loss Function](#46-prediction-head-và-loss-function)
   - [4.7. Huấn luyện và suy luận](#47-huấn-luyện-và-suy-luận)
@@ -213,7 +213,24 @@ Hai phương thức mang tính bổ sung nhưng không đồng nhất. Văn bả
 
 ## 1.3. Phát biểu bài toán nghiên cứu
 
-Với mỗi review \(i\), hệ thống nhận bình luận \(t_i\) và một tập ảnh \(I_i\), sau đó học hàm:
+Bài toán là xây dựng một mô hình học sâu hồi quy đa mục tiêu (multi-target regression) kết hợp đa phương thức (multimodal) để đánh giá chất lượng trải nghiệm ăn uống dựa trên các đánh giá của người dùng. 
+
+Bài toán được định nghĩa qua các thành phần Đầu vào (Input) và Đầu ra (Output) như sau:
+
+**1. Đầu vào (Input):**
+Mỗi mẫu dữ liệu (sample) \(i\) tương ứng với một lượt đánh giá (review), bao gồm hai nguồn thông tin:
+*   **Văn bản (Text - \(t_i\)):** Nội dung bình luận đã được làm sạch (`comment_clean`), loại bỏ nhiễu và chuẩn hóa.
+*   **Hình ảnh (Images - \(I_i\)):** Tập hợp các hình ảnh đính kèm trong bài đánh giá đó.
+
+**2. Đầu ra (Output):**
+Hệ thống học hàm \(f_\theta\) để dự đoán đồng thời 5 điểm số liên tục (regression scores) trên thang điểm 10. Thay vì chỉ phân loại cảm xúc đơn thuần, mô hình xuất ra:
+*   **Điểm thức ăn (Food Score - \(\hat y_i^{food}\))**
+*   **Điểm giá cả (Price Score - \(\hat y_i^{price}\))**
+*   **Điểm không gian (Atmosphere Score - \(\hat y_i^{atmos}\))**
+*   **Điểm phục vụ (Service Score - \(\hat y_i^{service}\))**
+*   **Điểm hài lòng tổng thể (Overall Satisfaction - \(\hat y_i^{overall}\))** 
+
+Hàm mục tiêu được biểu diễn hình thức như sau:
 
 \[
 f_\theta:(t_i,I_i)\mapsto
@@ -226,12 +243,13 @@ f_\theta:(t_i,I_i)\mapsto
 \right].
 \]
 
-Vấn đề nghiên cứu không chỉ là cực tiểu hóa sai số. Hệ thống cần đồng thời thỏa mãn bốn nhóm yêu cầu:
+**3. Yêu cầu đối với hệ thống và kết quả đầu ra:**
+Mục tiêu cốt lõi không chỉ dừng lại ở việc tối ưu hóa độ chính xác (cực tiểu hóa sai số MSE/MAE), mà kết quả dự đoán và toàn bộ quá trình học của hệ thống cần thỏa mãn bốn tiêu chí quan trọng sau:
 
-1. **Prediction quality:** dự đoán ổn định cho cả năm đầu ra.
-2. **Modality utilization:** khai thác ảnh khi ảnh hữu ích mà không để nhiễu thị giác làm suy giảm tín hiệu văn bản.
-3. **Experiment traceability:** mọi lựa chọn backbone, Fusion Mechanism và Loss Function phải được đánh giá trong một protocol có kiểm soát.
-4. **Explanation grounding:** diễn giải phải liên kết với artifact XAI cụ thể và công khai giới hạn của bằng chứng.
+1. **Chất lượng dự đoán (Prediction quality):** Các điểm số đầu ra phải đạt được sự ổn định và độ tin cậy cao đồng thời trên cả 5 khía cạnh đánh giá.
+2. **Khai thác đa phương thức (Modality utilization):** Kết quả dự đoán phải phản ánh được sự đóng góp hợp lý của hình ảnh, tận dụng tốt thông tin thị giác bổ trợ mà không để nhiễu làm suy giảm đi tín hiệu chính từ văn bản.
+3. **Tính minh bạch thực nghiệm (Experiment traceability):** Sự cải thiện ở kết quả đầu ra phải được giải thích rõ ràng thông qua một quy trình thực nghiệm có kiểm soát, nhằm đánh giá chính xác tác động của từng lựa chọn kiến trúc (backbone, Fusion Mechanism và Loss Function).
+4. **Khả năng diễn giải có căn cứ (Explanation grounding):** Song song với các điểm số dự đoán, hệ thống phải cung cấp các diễn giải (XAI) liên kết trực tiếp với các bằng chứng cụ thể của dữ liệu và công khai được giới hạn của những bằng chứng đó.
 
 Hình 1.1 khái quát chuỗi giá trị nghiên cứu từ dữ liệu đến diễn giải.
 
@@ -260,33 +278,26 @@ flowchart LR
 
 ## 1.4. Thách thức khoa học và kỹ thuật
 
-### 1.4.1. Tính không đồng nhất giữa các modality
+### 1.4.1. Sự khác biệt lớn giữa văn bản và hình ảnh (Modality Heterogeneity)
+Từ ngữ trong văn bản và các vùng ảnh (patch) có cấu trúc và mật độ thông tin hoàn toàn khác nhau. Văn bản thường thể hiện rõ mức độ hài lòng về "Giá cả" hoặc "Phục vụ", trong khi hình ảnh lại mang nhiều thông tin về "Thức ăn" và "Không gian". Một cơ chế kết hợp (fusion) cố định có thể sẽ không xử lý tốt sự biến thiên linh hoạt này trên từng mẫu dữ liệu cụ thể.
 
-Token văn bản và patch ảnh khác nhau về cấu trúc, mật độ thông tin và mức liên quan với target. Văn bản thường cung cấp tín hiệu trực tiếp cho Price Score hoặc Service Score, trong khi ảnh thường mạnh hơn ở Food Score và Atmosphere Score. Một Fusion Mechanism cố định có thể không thích ứng với sự thay đổi này theo từng sample.
+### 1.4.2. Khó khăn khi tổng hợp nhiều ảnh (Multi-image Aggregation)
+Một bài đánh giá có thể kèm theo nhiều ảnh, nhưng không phải ảnh nào cũng mang giá trị thông tin như nhau. Phương pháp lấy trung bình đơn giản (mean pooling) - tức là cộng trung bình các vector đặc trưng (feature vectors) của tất cả các ảnh lại thành một đại diện duy nhất - tuy dễ thực hiện nhưng lại đánh đồng mức độ quan trọng của mọi bức ảnh. Hơn nữa, việc lấy trung bình các đặc trưng này giữa những bức ảnh chụp các nội dung khác nhau có thể làm sai lệch ý nghĩa ban đầu. Do đó, việc chọn lọc ảnh hoặc tính toán mức độ chú ý (attention) để tự động nhận biết ảnh nào quan trọng hơn là một thách thức lớn.
 
-### 1.4.2. Multi-image aggregation
+### 1.4.3. Đặc thù của văn bản tiếng Việt trên mạng xã hội (Non-standard Vietnamese Text)
+Các bình luận trên mạng thường mắc lỗi chính tả, viết tắt, hoặc sử dụng tiếng lóng. Các mô hình ngôn ngữ (như PhoBERT) thường được huấn luyện trên tiếng Việt chuẩn; ViSoBERT hướng đến ngôn ngữ mạng xã hội; trong khi XLM-R hỗ trợ đa ngôn ngữ. Không có một mô hình nào được xem là hoàn hảo tuyệt đối cho mọi tình huống. Cần phải có thực nghiệm kiểm chứng để chọn ra mô hình tối ưu nhất khi kết hợp với hình ảnh.
 
-Một review có thể có nhiều ảnh, nhưng không phải ảnh nào cũng liên quan ngang nhau. Mean pooling có ưu điểm đơn giản và ổn định, song giả định mỗi ảnh đóng góp tương đương. Việc trung bình patch tại cùng tọa độ giữa các ảnh còn có thể trộn những vùng không có tương ứng ngữ nghĩa. Đây là lý do multi-image attention pooling và image-quality filtering được xem là hướng phát triển quan trọng.
+### 1.4.4. Sự phụ thuộc và nhiễu trong nhãn dự đoán (Label Noise and Target Dependencies)
+Điểm "Hài lòng tổng thể" được tổng hợp từ các điểm thành phần và tinh chỉnh bằng các quy luật từ văn bản. Cách làm này dễ truy vết nhưng lại tạo ra sự phụ thuộc toán học giữa các mục tiêu dự đoán. Hơn nữa, điểm số do người dùng đánh giá mang tính chủ quan cao và dễ chứa nhiễu. Việc chọn hàm mất mát (Loss Function) phù hợp để xử lý các giá trị bất thường (outliers) và cân bằng giữa các mục tiêu là một bài toán hóc búa.
 
-### 1.4.3. Văn bản tiếng Việt phi chuẩn
+### 1.4.5. Không gian thử nghiệm quá lớn (Vast Search Space)
+Việc thử nghiệm cùng lúc nhiều mô hình hình ảnh, mô hình văn bản, cơ chế kết hợp, hàm mất mát và các hạt giống ngẫu nhiên (random seed) sẽ làm số lượng kịch bản tăng theo cấp số nhân (hàng trăm đến hàng ngàn lượt chạy). Việc chạy thử cạn kiệt (exhaustive search) là bất khả thi với tài nguyên tính toán hữu hạn của một đồ án đại học. Do đó, hệ thống cần một quy trình thử nghiệm tuần tự và có kiểm soát (Controlled Sequential Ablation) để tìm ra kết hợp tốt nhất một cách tối ưu.
 
-PhoBERT được tiền huấn luyện theo hướng tiếng Việt chuẩn và yêu cầu chú ý đến word segmentation; ViSoBERT hướng đến văn bản mạng xã hội; XLM-R cung cấp khả năng đa ngữ và code-mixing. Không có cơ sở để mặc định một encoder luôn tốt nhất cho mọi review. Sự phù hợp phải được kiểm định trong cùng dữ liệu, cùng split và cùng Fusion Mechanism.
+### 1.4.6. Tính trung thực của các phương pháp diễn giải (Faithfulness of Explainable AI)
+Các bản đồ nhiệt (heatmap) tô màu trên ảnh có thể trông hợp lý với mắt người nhưng chưa chắc đã phản ánh đúng cách mô hình suy luận. Ví dụ: Grad-CAM có độ phân giải thô, còn SHAP hay LIME lại phụ thuộc nhiều vào cách thiết lập. Việc sử dụng đồng thời nhiều phương pháp XAI chỉ mang lại giá trị khi chúng bù trừ cho nhau, và những điểm mâu thuẫn giữa chúng được phân tích để tìm ra góc khuất của mô hình.
 
-### 1.4.4. Nhiễu nhãn và phụ thuộc giữa các target
-
-Overall Satisfaction được xây dựng từ trung bình bốn khía cạnh kết hợp với rule-based adjustment dựa trên bình luận. Cách gán nhãn này có ưu điểm về auditability nhưng làm phát sinh phụ thuộc thống kê giữa target tổng thể và các target thành phần. Đồng thời, điểm người dùng vốn chứa chủ quan cá nhân, thiên lệch chọn mẫu và nhiễu. MSE có thể nhạy với outlier, trong khi Loss Function robust hoặc uncertainty weighting có thể thay đổi trade-off giữa các target.
-
-### 1.4.5. Chi phí không gian tìm kiếm
-
-Nếu khảo sát đồng thời nhiều Image Backbone, Text Backbone, Fusion Mechanism, Loss Function và random seed, số run tăng theo tích Descartes. Chỉ riêng 4 Image Backbone, 3 Text Backbone, 5 Fusion Mechanism, 4 Loss Function và 3 seed đã tạo \(4\times3\times5\times4\times3=720\) run, chưa kể Hyperparameter tuning. Exhaustive Search vượt quá ngân sách của một đồ án đại học; ngược lại, thử nghiệm ngẫu nhiên không có cấu trúc làm yếu khả năng quy kết nguyên nhân. Đề tài vì thế sử dụng **Controlled Sequential Ablation + Promising Combination Validation**.
-
-### 1.4.6. Faithfulness của Explainable AI
-
-Heatmap trực quan có thể hợp lý đối với người xem nhưng không nhất thiết faithful với cơ chế dự đoán. Grad-CAM có độ phân giải thô; attention không tự động là causal explanation; SHAP phụ thuộc background; LIME phụ thuộc perturbation và segmentation. Việc phối hợp nhiều phương pháp chỉ có giá trị khi mỗi phương pháp trả lời một câu hỏi khác nhau và khi disagreement được giữ lại để phân tích.
-
-### 1.4.7. Hallucination trong diễn giải bằng LLM
-
-LLM có khả năng tạo văn bản trôi chảy ngay cả khi bằng chứng thiếu hoặc mâu thuẫn. Nếu đưa artifact thô trực tiếp vào prompt và yêu cầu “giải thích”, mô hình có thể biến correlation thành causation hoặc mô tả vùng ảnh mà nó chưa quan sát. Thiết kế AI Agent phải tách Evidence Loading, Evidence Compression, Reasoning Graph, Prompt Construction và Output Validation để giảm rủi ro này.
+### 1.4.7. Hiện tượng "ảo giác" khi dùng AI sinh báo cáo (LLM Hallucination)
+Các mô hình ngôn ngữ lớn (LLM) có khả năng sinh văn bản rất trôi chảy dù không có bằng chứng thực tế. Nếu chỉ đưa kết quả thô vào câu lệnh (prompt) và yêu cầu LLM giải thích, nó có thể nhầm lẫn sự tương quan thành quan hệ nhân quả, hoặc bịa ra một chi tiết trong ảnh mà nó chưa từng thấy. Thiết kế của AI Agent phải tách biệt chặt chẽ các khâu nạp bằng chứng, lập luận và sinh báo cáo để ngăn chặn rủi ro này.
 
 ## 1.5. Research Gap
 
@@ -384,108 +395,105 @@ Chương 2 xây dựng nền tảng học thuật và xác lập Research Gap. C
 
 ## 2.1. Phạm vi tổng quan
 
-Chương này tổ chức tài liệu theo năm trục: Multimodal Learning; backbone thị giác và ngôn ngữ; Multimodal/Aspect-Based Sentiment Analysis; Explainable AI; và LLM-based Explanation Generation. Các công trình được dùng để hình thành giả thuyết và lựa chọn kỹ thuật, không được dùng để suy diễn rằng một mô hình chắc chắn tốt hơn trên dữ liệu của đề tài.
+Chương này sẽ điểm qua các công trình nghiên cứu nổi bật làm nền tảng lý thuyết cho hệ thống, được chia thành các nhóm chính: (1) Kiến trúc xử lý hình ảnh và văn bản (Backbone), (2) Các phương pháp kết hợp đa phương thức (Multimodal Fusion), (3) Phân tích cảm xúc theo khía cạnh, (4) Trí tuệ nhân tạo có thể diễn giải (Explainable AI - XAI), và (5) Ứng dụng mô hình ngôn ngữ lớn (LLM) để tự động sinh báo cáo.
 
-Sự khác biệt giữa task trong tài liệu và task của đề tài cần được giữ rõ. Nhiều công trình báo cáo Accuracy hoặc F1 cho classification, trong khi đề tài tối ưu MAE/RMSE cho Multi-output Regression. Kết quả trên ImageNet, XNLI hay MABSA benchmark chứng minh năng lực biểu diễn hoặc tính khả thi của kiến trúc, nhưng không thay thế experiment trên review nhà hàng tiếng Việt.
+Mục tiêu của phần tổng quan tài liệu là học hỏi các thiết kế kiến trúc đã thành công trên thế giới. Dù vậy, vẫn cần lưu ý một sự khác biệt cốt lõi: phần lớn các nghiên cứu trước đây tập trung vào bài toán phân loại nhãn rời rạc (Ví dụ: tính độ chính xác để phân loại bình luận Tích cực/Tiêu cực) trên các bộ dữ liệu tiếng Anh chuẩn. Trong khi đó, đề tài của chúng ta giải quyết bài toán dự đoán điểm số liên tục (Regression) với nhiều tiêu chí cùng lúc trên dữ liệu đánh giá nhà hàng chuyên biệt bằng tiếng Việt. Do đó, những kết quả tốt từ các bài báo khoa học chỉ đóng vai trò gợi ý hướng đi; mọi quyết định lựa chọn mô hình cuối cùng đều phải được kiểm chứng lại bằng thực nghiệm cụ thể.
 
-## 2.2. Multimodal Learning và taxonomy của fusion
+## 2.2. Khối trích xuất đặc trưng hình ảnh (Image Backbone)
 
-Multimodal Learning nghiên cứu cách biểu diễn, căn chỉnh, kết hợp và suy luận từ nhiều nguồn dữ liệu. Trong bài toán ảnh–văn bản, ba chiến lược fusion cơ bản thường được phân biệt:
+### 2.2.1. ConvNeXt
 
-- **Early Fusion:** kết hợp đầu vào hoặc feature rất sớm. Cách này cho phép tương tác sâu nhưng khó áp dụng trực tiếp khi token và pixel khác cấu trúc.
-- **Intermediate Fusion:** mỗi modality có encoder riêng; feature được kết hợp ở tầng trung gian. Đây là lựa chọn của đề tài vì cân bằng giữa modularity và interaction.
-- **Late Fusion:** kết hợp prediction của các nhánh. Cách này đơn giản và dễ xử lý missing modality nhưng hạn chế học liên kết token–patch.
+ConvNeXt là một mạng nơ-ron tích chập (CNN) được hiện đại hóa bằng cách học hỏi các ưu điểm thiết kế của Vision Transformer (như sử dụng kernel kích thước lớn), trong khi vẫn duy trì được đặc tính gốc của CNN là khả năng nhận diện tốt các khối không gian liền kề (inductive bias) [13]. Trong hệ thống, ConvNeXt đóng vai trò là một mô hình cơ sở (baseline). Ưu điểm của nó là tính ổn định cao và dễ dàng tạo ra các bản đồ đặc trưng không gian (spatial feature map) rõ ràng – điều kiện lý tưởng để áp dụng công cụ giải thích mô hình bằng hình ảnh như Grad-CAM.
 
-MulT của Tsai và cộng sự [10] cho thấy directional pairwise cross-modal attention có thể học quan hệ giữa các chuỗi không căn chỉnh. Dù MulT nghiên cứu text–audio–vision theo thời gian, nguyên lý “một modality truy vấn modality khác” cung cấp nền tảng cho bidirectional Cross-Attention của đề tài. Khác biệt quan trọng là ảnh nhà hàng được biểu diễn bằng spatial patch, còn văn bản bằng token; không có trục thời gian chung.
+### 2.2.2. EfficientNet
 
-GMU của Arevalo và cộng sự [11] học multiplicative gate để điều chỉnh ảnh hưởng của từng modality trong hidden representation. Giá trị của GMU đối với review nhà hàng nằm ở khả năng giảm vai trò của ảnh khi ảnh không liên quan. Tuy nhiên, gate ở mức vector không trực tiếp mô hình hóa liên kết chi tiết giữa từ và vùng ảnh.
+EfficientNet nổi bật với cơ chế mở rộng kép (compound scaling), giúp tự động tính toán tỷ lệ tối ưu giữa độ sâu (số lớp), chiều rộng (số kênh) và độ phân giải của ảnh đầu vào thay vì tinh chỉnh thủ công [14]. Phiên bản EfficientNet-B3 được lựa chọn vì mang lại sự cân bằng tốt giữa sức mạnh tính toán và độ chính xác. So với các mô hình Transformer cồng kềnh, cấu trúc nhỏ gọn của nó giúp tiết kiệm chi phí bộ nhớ khi huấn luyện khối lượng lớn hình ảnh (batch inference). Tuy nhiên, cách trích xuất đặc trưng của nó khiến việc "lắp ráp" với từ ngữ trong văn bản qua cơ chế Attention có phần kém tự nhiên hơn.
 
-FiLM của Perez và cộng sự [12] sử dụng phép biến đổi affine theo feature:
+### 2.2.3. Swin Transformer
 
-\[
-\operatorname{FiLM}(\mathbf{x}\mid\mathbf{z})
-=\gamma(\mathbf{z})\odot\mathbf{x}+\beta(\mathbf{z}),
-\]
+Swin Transformer giải quyết điểm yếu của Transformer truyền thống bằng cơ chế tự chú ý qua các cửa sổ dịch chuyển (shifted-window self-attention). Thay vì so sánh từng điểm ảnh với toàn bộ bức ảnh (rất tốn kém), Swin chỉ tính toán trong các khu vực nhỏ gọn và dần dần mở rộng tầm nhìn, tạo ra một hệ thống đặc trưng phân cấp (feature hierarchy) [1]. Lưới đặc trưng ở tầng cuối cùng phân chia bức ảnh thành các vùng rõ rệt (patch), cực kỳ hoàn hảo để làm đầu vào cho khối tương tác chéo (Cross-Attention) với văn bản, đồng thời dễ dàng khoanh vùng ảnh quan trọng qua Grad-CAM.
 
-trong đó conditioning signal \(\mathbf{z}\) điều chỉnh scale và shift của \(\mathbf{x}\). Trong đề tài, text feature sinh \(\gamma,\beta\) để điều biến image feature. FiLM hiệu quả về tham số và có trực giác rõ, nhưng bất đối xứng: văn bản điều khiển ảnh chứ không đồng thời học hai hướng như Cross-Attention.
+### 2.2.4. SigLIP
 
-## 2.3. Backbone thị giác
-
-### 2.3.1. ConvNeXt
-
-ConvNeXt được phát triển bằng cách hiện đại hóa ConvNet theo các design choice chịu ảnh hưởng của Vision Transformer, đồng thời duy trì inductive bias của convolution [13]. Kiến trúc này phù hợp làm Baseline thị giác vì feature extraction ổn định, hỗ trợ pretrained weight và tạo spatial feature map dùng được cho Grad-CAM. Trong đề tài, ConvNeXt còn đóng vai trò reference để kiểm tra liệu hierarchical Transformer có thực sự cần thiết.
-
-### 2.3.2. EfficientNet
-
-EfficientNet sử dụng compound scaling để cân bằng depth, width và input resolution [14]. EfficientNet-B3 được chọn như một ứng viên có trade-off tốt giữa chi phí và năng lực biểu diễn. So với Swin-B, mô hình nhỏ hơn có thể thuận lợi cho Colab và batch inference; ngược lại, feature patch cho Cross-Attention có thể ít tự nhiên hơn so với hierarchical Transformer.
-
-### 2.3.3. Swin Transformer
-
-Swin Transformer xây dựng feature hierarchy bằng shifted-window self-attention, giảm độ phức tạp theo kích thước ảnh và tạo kết nối qua cửa sổ [1]. Output không gian ở stage cuối phù hợp với hai mục tiêu: giữ patch sequence cho Cross-Attention và cung cấp target layer cho Grad-CAM. Với cấu hình Swin-B 224×224 trong đề tài, stage cuối tạo lưới 7×7 với 1.024 channel.
-
-### 2.3.4. SigLIP
-
-SigLIP thay softmax contrastive objective bằng pairwise sigmoid loss cho language–image pretraining [15]. Pretraining này tạo visual representation đã được căn chỉnh với ngôn ngữ ở quy mô lớn, nên SigLIP là ứng viên hợp lý cho dữ liệu ảnh–văn bản. Tuy nhiên, việc chỉ lấy visual encoder rồi fusion với một text encoder khác không bảo đảm giữ toàn bộ lợi thế alignment của pretraining gốc. Do đó, SigLIP được xem là hypothesis cần kiểm định chứ không phải winner mặc định.
-
-Bảng 2.1 tổng hợp inductive bias, ưu điểm kỳ vọng và rủi ro của bốn Image Backbone.
+SigLIP (Sigmoid Loss for Language Image Pre-Training) là mô hình tiên tiến thay thế hàm mất mát truyền thống bằng hàm sigmoid từng cặp (pairwise sigmoid loss), giúp học cách nối kết hàng tỷ cặp ảnh và văn bản một cách cực kỳ hiệu quả [15]. Nhờ được huấn luyện "đọc" đồng thời cả hình ảnh và văn bản từ đầu, bộ trích xuất ảnh của SigLIP tự nhiên mang theo ngữ nghĩa của ngôn ngữ. Tuy nhiên, nếu ta chỉ bóc tách riêng phần nhìn của SigLIP để ghép với một mô hình xử lý văn bản khác, rủi ro đánh mất lợi thế gắn kết ban đầu là hoàn toàn có thể xảy ra.
 
 **Bảng 2.1. So sánh các Image Backbone được khảo sát.**
 
-| Backbone | Inductive bias | Ưu điểm kỳ vọng | Rủi ro/giới hạn | Vai trò thực nghiệm |
+| Backbone | Cơ chế cốt lõi | Ưu điểm kỳ vọng | Rủi ro/giới hạn | Vai trò thực nghiệm |
 |---|---|---|---|---|
-| ConvNeXt | Convolution hiện đại | Stable transfer; Grad-CAM thuận lợi | Không có native language alignment | Baseline ảnh |
-| EfficientNet-B3 | Compound scaling | Hiệu quả tham số | Spatial representation phụ thuộc implementation | Candidate tiết kiệm |
-| Swin-B | Hierarchical shifted-window attention | Patch hierarchy; XAI attachment rõ | Chi phí bộ nhớ cao | Candidate chính |
-| SigLIP | Language–image pretraining | Semantic visual representation | Có thể mất lợi thế khi tách encoder | Candidate vision-language |
+| ConvNeXt | Thiết kế CNN lai Transformer | Ổn định, tạo spatial feature map tốt cho Grad-CAM | Thiếu sự gắn kết tự nhiên với ngôn ngữ | Baseline ảnh |
+| EfficientNet-B3 | Compound scaling | Hiệu quả tham số, tiết kiệm bộ nhớ | Feature patch khó tương thích tự nhiên với Cross-Attention | Candidate tiết kiệm |
+| Swin-B | Hierarchical shifted-window attention | Chia ảnh thành patch phân cấp, hỗ trợ Attention cực tốt | Chi phí bộ nhớ cao | Candidate chính |
+| SigLIP | Pretraining qua pairwise sigmoid loss | Trích xuất đặc trưng hình ảnh mang tính ngữ nghĩa cao | Có thể mất lợi thế khi tách rời khỏi bộ giải mã văn bản gốc | Candidate thăm dò |
 
-## 2.4. Backbone ngôn ngữ cho review tiếng Việt
+## 2.3. Khối trích xuất đặc trưng ngôn ngữ (Text Backbone)
 
-### 2.4.1. XLM-R
+### 2.3.1. XLM-R
 
-XLM-R được pretrained bằng masked language modeling trên 100 ngôn ngữ và dữ liệu CommonCrawl quy mô lớn [16]. Điểm mạnh là multilingual transfer và khả năng xử lý code-mixing. Đối với review có xen tiếng Anh hoặc tên món nước ngoài, XLM-R là một Baseline hợp lý. Hạn chế là capacity phải phân bổ cho nhiều ngôn ngữ và pretraining không chuyên biệt cho tiếng Việt hoặc văn bản nhà hàng.
+XLM-RoBERTa (XLM-R) là một mô hình ngôn ngữ lớn được huấn luyện đa ngữ bằng kỹ thuật che từ (masked language modeling) trên nguồn dữ liệu khổng lồ gồm 100 ngôn ngữ khác nhau [16]. Sức mạnh cốt lõi của XLM-R là khả năng xử lý các câu văn trộn lẫn ngôn ngữ (code-mixing). Đối với dữ liệu đánh giá nhà hàng tại Việt Nam – nơi người dùng liên tục dùng chêm các từ tiếng Anh như "view", "menu", "decor" – XLM-R là một lựa chọn cơ sở vững chắc. Hạn chế là do "dung lượng bộ nhớ" phải chia sẻ cho quá nhiều ngôn ngữ, nó không đạt độ sắc bén tối đa dành riêng cho tiếng Việt.
 
-### 2.4.2. PhoBERT
+### 2.3.2. PhoBERT
 
-PhoBERT là Pre-trained Language Model đơn ngữ tiếng Việt, được công bố với hai kích thước base và large [2]. Công trình gốc cho thấy lợi ích trên nhiều task tiếng Việt chuẩn. PhoBERT sử dụng preprocessing và subword convention phù hợp tiếng Việt, nhưng review mạng xã hội có thể khác domain pretraining. Khi dùng PhoBERT, tokenization audit và cách merge subword trong visualization là bắt buộc để tránh trình bày fragment như từ hoàn chỉnh.
+PhoBERT là mô hình ngôn ngữ đầu tiên được huấn luyện chuyên biệt và quy mô lớn cho tiếng Việt [2]. Vì tập trung vào một ngôn ngữ, PhoBERT sở hữu bộ từ vựng và thuật toán tách từ (tokenization) bám sát quy tắc ngữ pháp tiếng Việt. Dù vậy, dữ liệu huấn luyện gốc của PhoBERT chủ yếu là các văn bản chuẩn mực (như báo chí), nên nó có thể gặp rào cản khi đối mặt với văn phong tự do, sai chính tả trong các bài đánh giá mạng xã hội (domain shift).
 
-### 2.4.3. ViSoBERT
+### 2.3.3. ViSoBERT
 
-ViSoBERT được pretrained cho Vietnamese social media text và được đánh giá trên emotion recognition, hate speech, sentiment analysis, spam review và hate-speech span [17]. Domain pretraining gần review trực tuyến tạo một giả thuyết mạnh rằng ViSoBERT xử lý slang và informal writing tốt. Tuy nhiên, task pretraining/downstream của ViSoBERT chủ yếu là classification; lợi thế đó cần được kiểm định lại trong Multi-output Regression và khi feature được fusion với ảnh. Bảng 2.2 đặt ba Text Backbone vào cùng một khung so sánh.
+ViSoBERT là mô hình ngôn ngữ được huấn luyện đặc biệt trên lượng dữ liệu thu thập trực tiếp từ mạng xã hội Việt Nam [17]. Nhờ tiếp xúc với nguồn văn bản thực tế này, ViSoBERT có ưu thế trong việc xử lý tiếng lóng, từ viết tắt và văn phong tự do (informal text). Câu hỏi cốt lõi cần kiểm chứng là liệu ưu điểm hiểu ngôn ngữ mạng này có tiếp tục giúp mô hình đạt hiệu năng cao khi chuyển sang bài toán dự đoán điểm số liên tục (regression) thay vì chỉ phân loại cảm xúc đơn thuần hay không.
 
 **Bảng 2.2. So sánh các Text Backbone chính.**
 
-| Backbone | Phạm vi pretraining | Phù hợp kỳ vọng | Câu hỏi cần kiểm định |
+| Backbone | Phạm vi huấn luyện (Pretraining) | Ưu điểm phù hợp với bài toán | Câu hỏi cần kiểm định |
 |---|---|---|---|
-| XLM-R | Đa ngữ, CommonCrawl | Code-mixing, Baseline tổng quát | Capacity dilution có ảnh hưởng tiếng Việt không? |
-| PhoBERT | Đơn ngữ tiếng Việt | Ngữ nghĩa tiếng Việt chuẩn | Domain shift sang review phi chuẩn lớn đến đâu? |
-| ViSoBERT | Social media tiếng Việt | Slang, informal text | Lợi thế classification có chuyển sang regression không? |
+| XLM-R | Đa ngữ (100 ngôn ngữ) | Xử lý tốt văn bản chêm tiếng Anh (code-mixing) | Dung lượng mô hình phân tán có làm giảm chất lượng xử lý tiếng Việt? |
+| PhoBERT | Đơn ngữ tiếng Việt chuẩn | Hiểu ngữ pháp và ngữ nghĩa tiếng Việt chuẩn xác | Rào cản khi xử lý ngôn ngữ mạng (domain shift) lớn đến mức nào? |
+| ViSoBERT | Mạng xã hội tiếng Việt | Xử lý tốt tiếng lóng, teencode, văn phong tự do | Lợi thế phân loại có giữ nguyên được khi dự đoán điểm số (regression)? |
 
-## 2.5. Multimodal Sentiment Analysis và Aspect-Based Analysis
+## 2.4. Khối kết hợp đa phương thức (Fusion Module)
 
-Khảo sát MABSA của Zhao, Meng và Song [3] hệ thống hóa các task aspect extraction, sentiment classification và multimodal interaction, đồng thời cho thấy xu hướng chuyển từ sentiment tổng quát sang phân tích theo target/aspect.
+Multimodal Learning nghiên cứu cách biểu diễn, căn chỉnh, kết hợp và suy luận từ nhiều nguồn dữ liệu (như văn bản, hình ảnh, âm thanh). Khối kết hợp (Fusion Module) đóng vai trò là cầu nối cốt lõi để tổng hợp thông tin. Trong bài toán ảnh–văn bản, các chiến lược kết hợp thường được phân loại dựa trên thời điểm thực hiện (taxonomy of fusion):
 
-VistaNet nghiên cứu review có ảnh và nhận định rằng ảnh thường đóng vai trò hỗ trợ, giúp định vị sentence/aspect quan trọng hơn là tự biểu đạt sentiment độc lập [18]. Quan sát này đặc biệt liên quan đến đề tài: Text Branch có thể là nguồn chính, còn Image Branch cung cấp evidence bổ trợ không đồng đều. Vì vậy, chỉ đánh giá score trung bình là chưa đủ; cần kiểm tra branch collapse và case-level contribution.
+- **Early Fusion (Kết hợp mức đặc trưng ban đầu - Feature-level):** Kết hợp các dữ liệu hoặc vector đặc trưng thô ngay từ giai đoạn đầu tiên, sau đó mới đưa vào huấn luyện trên một mô hình duy nhất. Cách này giúp hệ thống học được sự tương tác từ rất sớm, nhưng gặp rào cản lớn khi các phương thức (như chuỗi từ ngữ và ma trận điểm ảnh) có định dạng và cấu trúc hoàn toàn khác biệt.
+- **Intermediate Fusion (Kết hợp mức trung gian - Mid-level):** Mỗi phương thức sẽ đi qua một mạng trích xuất (encoder) độc lập để tìm ra các đặc trưng cốt lõi. Sau đó, mô hình mới tiến hành trộn các đặc trưng này lại với nhau ở các tầng ẩn (hidden layers) bên trong kiến trúc. Đây là phương pháp phổ biến nhất hiện nay vì nó vừa cho phép xử lý tối ưu từng loại dữ liệu riêng biệt, vừa đảm bảo mô hình học được mối liên kết ngữ nghĩa sâu sắc giữa hình ảnh và văn bản.
+- **Late Fusion (Kết hợp mức quyết định - Decision-level):** Các nhánh mô hình (hình ảnh và văn bản) được huấn luyện độc lập và tự đưa ra kết quả dự đoán của riêng mình. Ở bước cuối cùng, hệ thống mới gộp các dự đoán này lại (ví dụ: bằng cách tính trung bình cộng hoặc biểu quyết) để ra kết quả chốt. Cách này rất dễ triển khai, nhưng có nhược điểm lớn là các nhánh bị cô lập hoàn toàn trong quá trình xử lý, dẫn đến việc bỏ lỡ sự tương tác và bổ trợ thông tin cho nhau.
 
-MIMN của Xu, Mao và Chen [19] là một trong những công trình sớm kết hợp aspect-level analysis với multimodal data. Hai interactive memory network học ảnh hưởng của aspect lên text và image, đồng thời học interaction giữa modality. Khác với MIMN, đề tài không trích xuất aspect term hoặc polarity; năm aspect được định nghĩa trước và output là score liên tục. Sự khác biệt này làm cho label dễ định nghĩa hơn nhưng cũng đặt câu hỏi: mô hình nên dự đoán thế nào khi review không đề cập một aspect?
+Bên cạnh thời điểm kết hợp, các cơ chế toán học bên trong khối fusion cũng liên tục được cải tiến trong các nghiên cứu gần đây:
 
-Các nghiên cứu MABSA gần đây nhấn mạnh modality gap, target-specific visual focus và implicit aspect. Peng và cộng sự [20] chỉ ra việc nối feature đơn giản có thể không đủ để thu hẹp khoảng cách modality và việc visual focus có thể thay đổi theo target. Những nhận định này hỗ trợ quyết định so sánh Concatenation với adaptive fusion và sinh Grad-CAM riêng cho từng Prediction Head.
+- **Gating Mechanisms:** Thay vì chỉ nối hai vector (Concatenation) một cách cứng nhắc, các nghiên cứu như GMU (Gated Multimodal Unit) của Arevalo và cộng sự [11] giới thiệu các "cổng" (gates) học được từ dữ liệu. Các cổng này giúp mô hình tự động đánh giá và quyết định xem nên tin tưởng vào đặc trưng của hình ảnh hay văn bản hơn trong từng trường hợp cụ thể.
+- **Feature Modulation:** Một hướng tiếp cận khác là dùng một phương thức để "điều hướng" phương thức còn lại. Điển hình là mạng FiLM do Perez và cộng sự [12] đề xuất, sử dụng đặc trưng của ngôn ngữ để sinh ra các tham số tác động trực tiếp lên biểu diễn của hình ảnh, giúp hình ảnh tập trung vào những ngữ cảnh mà văn bản đang đề cập.
+- **Attention-based Fusion:** Để khắc phục hạn chế của việc nén toàn bộ thông tin thành các vector đơn giản, MulT của Tsai và cộng sự [10] chứng minh rằng cơ chế Cross-Attention có thể học được mối liên hệ chi tiết giữa các chuỗi dữ liệu mà không cần phải căn chỉnh (alignment) từ trước. Nguyên lý "dùng một phương thức để truy vấn thông tin từ phương thức kia" đã mở ra xu hướng cho các mô hình đa phương thức phức tạp.
 
-VistaNet và MIMN chủ yếu giải quyết classification. Đề tài kế thừa trực giác aspect-specific nhưng chuyển sang score regression, nhiều ảnh mỗi review và giải thích đa tầng. Đây là khác biệt thiết kế đáng kể, không phải phép lặp trực tiếp của MABSA.
+Việc lựa chọn thiết kế khối kết hợp nào phụ thuộc vào tính chất của bài toán. Các phương pháp phức tạp (như Attention) mang lại khả năng diễn giải sâu, trong khi các phương pháp Gated hoặc Concatenation lại tối ưu hơn về mặt chi phí tính toán.
+
+## 2.5. Sự dịch chuyển từ Phân tích cảm xúc tổng quát sang Phân tích theo khía cạnh
+
+Lĩnh vực phân tích cảm xúc đa phương thức đang có sự chuyển dịch mạnh mẽ: thay vì chỉ đánh giá một bình luận là "tích cực" hay "tiêu cực" chung chung, các nghiên cứu hiện đại tập trung vào phân tích cảm xúc đa phương thức theo từng khía cạnh cụ thể (Multimodal Aspect-Based Sentiment Analysis - Multimodal ABSA) như thức ăn, giá cả, hay phục vụ [3].
+
+Một số công trình tiêu biểu đã làm rõ cách hình ảnh và văn bản tương tác với nhau trong các bài đánh giá trên mạng:
+
+- **Vai trò bổ trợ của hình ảnh:** Nghiên cứu từ VistaNet [18] chỉ ra rằng trong các bài đánh giá, hình ảnh hiếm khi tự đứng độc lập để thể hiện cảm xúc. Thay vào đó, hình ảnh đóng vai trò "bằng chứng bổ trợ" giúp nhấn mạnh các câu văn quan trọng. Điều này gợi ý rằng văn bản thường là nguồn thông tin chính yếu định hình kết quả dự đoán, còn hình ảnh cung cấp thêm bằng chứng minh họa.
+- **Tương tác đa chiều:** Mô hình MIMN [19] là một trong những nghiên cứu tiên phong trong việc sử dụng mạng bộ nhớ tương tác để xem xét cách các khía cạnh (aspect) ảnh hưởng đồng thời lên cả văn bản và hình ảnh. Tuy nhiên, các hệ thống này thường bị giới hạn ở bài toán phân loại nhãn rời rạc (classification) và yêu cầu dữ liệu phải có sẵn các từ khóa trích xuất.
+- **Sự khác biệt về trọng tâm thị giác:** Peng và cộng sự [20] nhận định rằng sự chú ý của mô hình vào bức ảnh sẽ thay đổi tùy thuộc vào khía cạnh đang được nhắc đến. Ví dụ, khi dự đoán điểm "Thức ăn", mô hình cần nhìn vào món ăn; nhưng khi đánh giá "Không gian", mô hình cần tập trung vào bối cảnh xung quanh. Do đó, việc nối ghép đặc trưng (concatenation) một cách cứng nhắc thường không đủ để thu hẹp khoảng cách giữa hình ảnh và văn bản.
+
+Tóm lại, hầu hết các nghiên cứu Multimodal ABSA hiện nay chủ yếu giải quyết bài toán phân loại nhãn cảm xúc và thường chỉ giả định một hình ảnh duy nhất cho mỗi bình luận. Việc mở rộng hệ thống để dự đoán điểm số liên tục (score regression), xử lý đồng thời nhiều hình ảnh, và có khả năng giải thích chi tiết mức độ đóng góp của từng phương thức cho từng khía cạnh riêng biệt vẫn là những khoảng trống (research gaps) lớn mà các nghiên cứu trước chưa giải quyết triệt để.
 
 ## 2.6. Attention và Cross-Attention
 
-Transformer định nghĩa scaled dot-product attention [21]:
+Cơ chế "Chú ý" (Attention) ra đời từ mô hình Transformer [21], được định nghĩa cốt lõi qua phép toán scaled dot-product attention:
 
 \[
 \operatorname{Attention}(Q,K,V)
 =\operatorname{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V.
 \]
 
-Self-Attention dùng \(Q,K,V\) từ cùng một sequence; Cross-Attention dùng query từ modality này và key/value từ modality khác. Trong bài toán hiện tại, text-to-image attention cho biết mỗi token tổng hợp thông tin từ patch nào; image-to-text attention cho biết mỗi patch tổng hợp thông tin từ token nào.
+Trong đó, nếu Self-Attention sử dụng chung một nguồn dữ liệu (cùng sequence) để tạo ra cả Query (Q), Key (K) và Value (V), thì **Cross-Attention** sử dụng Query từ một phương thức (modality) này và Key/Value từ phương thức khác. Cụ thể trong đề tài:
+- **Text-to-Image Attention:** Dùng các từ vựng (token) làm Query để quét qua các vùng ảnh (patch), giúp mô hình nhận biết từ vựng nào đang tổng hợp thông tin từ vùng ảnh nào.
+- **Image-to-Text Attention:** Ngược lại, dùng các vùng ảnh làm Query để đối chiếu xem chúng phản ánh những từ ngữ trọng tâm nào trong bình luận.
 
-Một yêu cầu cấu trúc quan trọng là sequence length phải lớn hơn một để attention có lựa chọn có ý nghĩa. Nếu mỗi modality bị pool thành một vector rồi `unsqueeze(1)`, softmax trên một key luôn là 1; module khi đó không học alignment. Thiết kế token–patch khắc phục điểm này bằng ma trận \(T\times P\), padding mask và masked mean pooling.
+Tác dụng cốt lõi của cơ chế này là giúp mô hình học được sự căn chỉnh (alignment) đa phương thức. Thay vì xử lý văn bản và hình ảnh như hai khối thông tin rời rạc, hệ thống có thể kết hợp chúng ở mức độ vi mô (từng từ ngữ và từng vùng ảnh). Sự giao tiếp chéo này giúp mô hình tự động sàng lọc và liên kết những bằng chứng có ý nghĩa nhất (ví dụ: lời khen "thịt nướng mềm" trong văn bản được đối chiếu trực tiếp với hình ảnh miếng thịt) để đưa ra dự đoán điểm số chính xác hơn.
 
-Mặc dù attention map có giá trị diagnostic, Jain và Wallace [9] cho thấy attention weight có thể không tương quan với gradient importance và có thể tồn tại attention distribution khác nhau cho prediction tương tự. Wiegreffe và Pinter [22] lập luận rằng kết luận phụ thuộc định nghĩa explanation và đề xuất các diagnostic test. Do đó, báo cáo dùng cách diễn đạt cân bằng: attention là **interaction evidence**, không phải chứng minh causal contribution.
+Dù các trọng số sinh ra từ Attention có khả năng trực quan hóa (diagnostic) rất tốt, việc diễn giải kết quả của nó vẫn là một chủ đề tranh luận lớn. Nghiên cứu của Jain và Wallace [9] chỉ ra rằng các trọng số chú ý (attention weight) đôi khi không tương quan thuận với mức độ ảnh hưởng thực sự của dữ liệu lên kết quả dự đoán (gradient importance). Ngược lại, Wiegreffe và Pinter [22] lập luận rằng tính hữu dụng của Attention phụ thuộc vào cách định nghĩa "lời giải thích", đồng thời đề xuất các bài kiểm tra chẩn đoán riêng. 
+
+Tiếp thu những góc nhìn này, đề tài áp dụng một quan điểm thận trọng trong cách diễn đạt: các bản đồ chú ý (attention map) chỉ được xem là **bằng chứng tương tác (interaction evidence)** cho thấy hai luồng dữ liệu giao tiếp ở đâu, chứ không đóng vai trò chứng minh nhân quả (causal contribution) tuyệt đối.
 
 ## 2.7. Explainable AI cho hệ thống đa phương thức
 
@@ -989,7 +997,7 @@ Spatial map được flatten thành patch sequence. Feature của cùng patch in
 
 Image Branch có Prediction Head riêng trong giai đoạn image-only. Khi fusion, backbone được freeze rồi có thể unfreeze block cuối của ConvNeXt/Swin/EfficientNet. Grad-CAM hook đặt ở feature map cuối trước pooling; gradient đi từ một target cụ thể qua Shared Head và Fusion Mechanism về Image Branch. Vì năm target chỉ tách ở layer cuối, gradient map có thể tương tự nhau. Đây là đặc tính kiến trúc cần đo bằng cosine similarity, không nên tự động xem là lỗi implementation.
 
-## 4.4. Các Fusion Mechanism
+## 4.4. Fusion Module
 
 Implementation cung cấp năm cơ chế trong Bảng 4.1. Tất cả đóng băng hai backbone trước, sau đó có thể mở khóa có chọn lọc các layer/block cuối bằng helper dùng chung.
 
@@ -1830,7 +1838,24 @@ Ba câu hỏi này không thể trả lời bằng một leaderboard duy nhất.
 | Nuisance variable | GPU type, library version, download failure, nondeterminism | Pin environment, manifest, repeated seed |
 | Diagnostic variable | Gate statistics, SHAP contribution, attention entropy | Không dùng làm primary selection trừ khi tie |
 
-Biến kiểm soát phải được ghi trong config thay vì chỉ xuất hiện trong interactive cell. Nếu batch size thay đổi vì VRAM, effective batch cần giữ gần nhau bằng gradient accumulation. Nếu image resolution bắt buộc thay đổi theo backbone, đó phải được ghi là một phần của treatment chứ không bị ẩn.
+Biến kiểm soát phải được ghi trong config thay vì chỉ xuất hiện trong interactive cell. Nếu batch size thay đổi vì VRAM, effective batch cần giữ gần nhau bằng gradient accumulation. Nếu image resolution bắt buộc thay đổi theo backbone, đó phải được ghi là một phần của treatment chứ không bị ẩn. Dựa trên mã nguồn cấu hình (`Config.py`) và thực tiễn huấn luyện, các siêu tham số cốt lõi được cố định như sau để đảm bảo tính công bằng:
+
+**Bảng 5.2. Cấu hình siêu tham số (Hyperparameters) tiêu chuẩn.**
+
+| Siêu tham số | Giá trị thiết lập |
+|---|---|
+| Batch size | 16 |
+| Gradient Accumulation | 2 |
+| Optimizer | AdamW |
+| Learning rate | `1e-5` |
+| Weight decay | `1e-2` |
+| Warmup ratio | `0.1` |
+| Epochs | 20 (với nhánh text, image), 15 (với fusion) |
+| Early stopping | 5 |
+| Max length | 256 tokens |
+| Image size | $224 \times 224$ |
+| Precision | AMP |
+| Seed | 42 |
 
 ## 5.3. Baseline framework
 
