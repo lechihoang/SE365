@@ -1,4 +1,4 @@
-# Phase 6: Case Study Selection & Analysis — Implementation Notes
+# Phase 6: Case Study Selection & Analysis — Implementation Notes (V2)
 
 ## 1. What Was Implemented
 
@@ -84,25 +84,58 @@ None. No existing files were modified.
 | `CaseStudyRunner` | Phase 7 — automated report generation |
 | `generate_analysis_text()` | Phase 7 — thesis text blocks |
 
-## 8. Known Limitations
+## 8. V2 Changes — Cross-Attention Integration
+
+### 8.1 What changed
+
+| Area | V1 | V2 |
+|---|---|---|
+| Artifact checking | 4 phases (GC, AT, SHAP, LIME) | 5 phases (+Cross-Attention) |
+| Completeness score | `found / 4` | `found / 5` |
+| Selection scoring | No cross-attention factor | 1.2× boost for cross-attention availability |
+| Orchestrator | 4 generators | 5 generators (+`_generate_cross_attention`) |
+| Combined figures | 1 figure type (core) | 2 figure types (core + cross-attention) |
+| Metadata | 4 phase availability fields | 5 phase availability fields |
+| Analysis text | No cross-attention section | Cross-attention interpretation section |
+| Notebook artifact table | GC/AT/SH/LM columns | GC/AT/CA/SH/LM columns |
+| Notebook validation | Checks core figure only | Checks core + cross-attention figures |
+
+### 8.2 Cross-attention combined figure
+
+Each case study now generates a separate `combined_cross_attention_figure.png` (14×16 inches) containing:
+- Original image + patch importance overlay
+- Top tokens → patch overlay grid (full row)
+- Top-K token × patch heatmap + bipartite graph
+
+This avoids overcrowding the core figure while giving cross-attention its own thesis-quality presentation.
+
+### 8.3 On-demand cross-attention generation
+
+`XAIOrchestrator` now includes `_generate_cross_attention()` which initializes `CrossAttentionExplainer` lazily and generates the full token-patch visualization suite (overlays, heatmaps, bipartite graph) for missing samples.
+
+---
+
+## 9. Known Limitations
 
 1. **Conflict detection is simplified** — does not use full Vietnamese sentiment analysis. Manual review of conflict candidates is recommended.
 2. **Figure layout is fixed** — does not adapt dynamically to different numbers of available artifacts.
-3. **No re-running of XAI** — if a selected sample lacks artifacts from a phase, Phase 6 cannot generate them. The user must run the missing phase first.
-4. **Keyword-based text analysis** — the "difficult" case detector uses simple keyword presence/absence, which may miss complex linguistic patterns.
+3. **Keyword-based text analysis** — the "difficult" case detector uses simple keyword presence/absence, which may miss complex linguistic patterns.
+4. **Cross-attention figure requires images** — if `loaded_images` is empty for a sample, token→patch overlays cannot be generated.
 
-## 9. How to Verify
+## 10. How to Verify
 
 1. Run the notebook end-to-end on Colab
 2. Check that `case_study_index.csv` contains 10-17 rows
 3. Verify each case directory has `metadata.json` and `analysis.md`
-4. Open combined figures and verify all panels are populated or show placeholders
+4. Open combined figures (core + cross-attention) and verify panels are populated or show placeholders
 5. Check `selection_log.json` for threshold decisions
 6. Verify `sample_manifest.csv` contains all selected sample data
+7. Check per-case validation table for core_fig/ca_fig/meta/analysis status
 
-## 10. Suggestions for Phase 7
+## 11. Suggestions for Phase 7
 
 - Read `case_study_index.csv` to generate the case study section of the thesis report
 - Use `analysis.md` files as starting points for thesis text
 - Aggregate combined figures for a thesis figure appendix
+- Include cross-attention figures for samples with strong token-patch patterns
 - Generate a summary table of modality contributions across all case types

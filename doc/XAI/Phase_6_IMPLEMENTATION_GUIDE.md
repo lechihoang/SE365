@@ -304,4 +304,28 @@ interesting cases.
 
 ---
 
+## 10. V2 Update — Cross-Attention Integration
+
+Phase 3 now produces **cross-attention token×patch** visualizations in addition to PhoBERT self-attention. Phase 6 V2 integrates these:
+
+### Artifact checking
+
+`check_sample_artifacts()` now checks a 5th phase: `cross_attention/`. Completeness is computed as `found / 5`.
+
+### Combined figures
+
+Each case study generates TWO combined figures:
+- `combined_figure_target{idx}_{factor}.png` — core figure (Grad-CAM, Attention, SHAP, LIME)
+- `combined_cross_attention_figure.png` — cross-attention figure (patch importance, token→patch overlay, top-K heatmap, bipartite graph)
+
+### On-demand generation
+
+`XAIOrchestrator` can generate missing cross-attention artifacts via `CrossAttentionExplainer`.
+
+### Selection scoring
+
+Samples with cross-attention artifacts receive a 1.2× selection score boost.
+
+---
+
 *End of Phase 6 Implementation Guide*

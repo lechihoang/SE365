@@ -139,8 +139,18 @@ def check_sample_artifacts(sample_id: str, xai_dir: str) -> Dict[str, Any]:
     lm_ok, lm_files = _check('lime', lm_patterns)
     result['lime'] = lm_ok
 
-    found = sum(int(result[p]) for p in ['gradcam', 'attention', 'shap', 'lime'])
-    result['completeness'] = found / 4
+    # Cross-Attention: token-patch visualization artifacts
+    ca_patterns = [
+        'cross_attention_raw.npz', 'cross_attention_summary.json',
+        'topk_token_patch_heatmap.png', 'token_patch_bipartite_graph.png',
+        'top_tokens_patch_overlay_grid.png',
+    ]
+    ca_ok, ca_files = _check('cross_attention', ca_patterns)
+    result['cross_attention'] = ca_ok
+
+    found = sum(int(result[p]) for p in
+                ['gradcam', 'attention', 'shap', 'lime', 'cross_attention'])
+    result['completeness'] = found / 5
     return result
 
 
@@ -232,7 +242,11 @@ def compute_selection_score(
     # Heavily penalize samples with no artifacts at all
     if ec == 0.0:
         return 0.0
-    return float(pq * vr * tr * mb * ec)
+
+    # Bonus for cross-attention availability (multiplicative boost)
+    ca_boost = 1.2 if artifact_info.get('cross_attention', False) else 1.0
+
+    return float(pq * vr * tr * mb * ec * ca_boost)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -566,6 +580,93 @@ def create_combined_figure(
     return save_path
 
 
+def create_cross_attention_figure(
+    sample_id: str, xai_dir: str,
+    dataset_row: pd.Series, pred_row: pd.Series,
+    image_dir: str, save_path: str, dpi: int = THESIS_DPI,
+) -> Optional[str]:
+    """Create a combined cross-attention visualization figure.
+
+    Assembles token-patch overlay grid, top-K heatmap, bipartite graph,
+    and patch importance into a single thesis-ready figure.
+
+    Returns save_path on success, None if no cross-attention artifacts exist.
+    """
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from matplotlib.gridspec import GridSpec
+
+    plt.rcParams['font.family'] = 'DejaVu Sans'
+    plt.rcParams['font.size'] = 10
+
+    ca_dir = os.path.join(xai_dir, 'cross_attention', sample_id)
+    if not os.path.isdir(ca_dir):
+        return None
+
+    arts = {
+        'original':  _load_original_image(dataset_row, image_dir),
+        'overlay_grid': _load_artifact_image(
+            os.path.join(ca_dir, 'top_tokens_patch_overlay_grid.png')),
+        'topk_heatmap': _load_artifact_image(
+            os.path.join(ca_dir, 'topk_token_patch_heatmap.png')),
+        'bipartite': _load_artifact_image(
+            os.path.join(ca_dir, 'token_patch_bipartite_graph.png')),
+        'patch_importance': _load_artifact_image(
+            os.path.join(ca_dir, 'patch_importance.png')),
+    }
+
+    has_any = any(v is not None for k, v in arts.items() if k != 'original')
+    if not has_any:
+        return None
+
+    fig = plt.figure(figsize=(14, 16))
+    gs = GridSpec(4, 2, figure=fig, height_ratios=[0.05, 1, 1, 1],
+                  hspace=0.25, wspace=0.15)
+
+    # Title
+    ax_t = fig.add_subplot(gs[0, :])
+    ax_t.axis('off')
+    ax_t.text(0.5, 0.5,
+              f'{sample_id}  |  Cross-Attention: Token × Patch Analysis',
+              transform=ax_t.transAxes, ha='center', va='center',
+              fontsize=14, fontweight='bold')
+
+    panels = [
+        (gs[1, 0], arts['original'],       'Original Image',
+         'Original image\nnot available'),
+        (gs[1, 1], arts['patch_importance'], 'Patch Importance Overlay',
+         'Patch importance\nnot available'),
+        (gs[2, :], arts['overlay_grid'],    'Top Tokens → Patch Overlay Grid',
+         'Token→Patch overlay\nnot available'),
+        (gs[3, 0], arts['topk_heatmap'],    'Top-K Token × Patch Heatmap',
+         'Top-K heatmap\nnot available'),
+        (gs[3, 1], arts['bipartite'],       'Token ↔ Patch Bipartite Graph',
+         'Bipartite graph\nnot available'),
+    ]
+    for spec, img, title, fallback in panels:
+        ax = fig.add_subplot(spec)
+        if img is not None:
+            ax.imshow(img)
+            ax.set_title(title, fontsize=11)
+        else:
+            _placeholder(ax, fallback)
+        ax.axis('off')
+
+    review = str(dataset_row.get('comment_clean', ''))
+    if len(review) > 300:
+        review = review[:297] + '...'
+    fig.text(0.5, 0.01, f'Review: {review}',
+             ha='center', va='bottom', fontsize=8, wrap=True,
+             style='italic', color='#444444')
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    fig.savefig(save_path, dpi=dpi, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    print(f'[XAI] Saved cross-attention figure: {save_path}')
+    return save_path
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 6. Metadata Generation
 # ══════════════════════════════════════════════════════════════════════════════
@@ -598,7 +699,8 @@ def generate_case_metadata(
         },
         'artifact_availability': {
             k: artifact_info.get(k, False)
-            for k in ['gradcam', 'attention', 'shap', 'lime', 'completeness']
+            for k in ['gradcam', 'attention', 'cross_attention',
+                       'shap', 'lime', 'completeness']
         },
         'shap_modality_contribution': shap_data or {},
         'target_names': TARGET_NAMES, 'factor_names': FACTOR_NAMES,
@@ -703,11 +805,22 @@ def generate_analysis_text(
                     f'- **{FACTOR_TO_DISPLAY.get(f, f)}:** '
                     f'Text {tp:.1f}% | Image {ip:.1f}%')
 
+    # Cross-attention interpretation
+    if arts.get('cross_attention'):
+        lines.extend([
+            '', '### Cross-Attention (Token × Patch)', '',
+            'The cross-attention mechanism reveals which text tokens attend to which '
+            'image patches. Token-to-patch overlays and the bipartite graph show the '
+            'strongest cross-modal connections. Manual interpretation of the '
+            'generated figures is recommended for thesis discussion.',
+        ])
+
     # Artifact availability
     lines.extend([
         '', '## Available XAI Artifacts', '',
-        *[f'- {p.title()}: {"Available" if arts.get(p) else "Missing"}'
-          for p in ['gradcam', 'attention', 'shap', 'lime']],
+        *[f'- {p.replace("_", " ").title()}: '
+          f'{"Available" if arts.get(p) else "Missing"}'
+          for p in ['gradcam', 'attention', 'cross_attention', 'shap', 'lime']],
         f'- Completeness: {arts.get("completeness", 0):.0%}',
         '', '## Review Text', '',
         f'> {review[:500]}{"..." if len(review) > 500 else ""}', '',
@@ -756,6 +869,7 @@ class XAIOrchestrator:
         # Lazy-init explainers (created on first use)
         self._gradcam = None
         self._attention = None
+        self._cross_attention = None
         self._shap = None
         self._lime = None
         self._attention_patched = False
@@ -785,7 +899,7 @@ class XAIOrchestrator:
         log: Dict[str, Dict[str, Any]] = {}
         art = check_sample_artifacts(sample_id, self.xai_dir)
 
-        for phase in ['gradcam', 'attention', 'shap', 'lime']:
+        for phase in ['gradcam', 'attention', 'cross_attention', 'shap', 'lime']:
             if art[phase]:
                 log[phase] = {'status': 'existing'}
             else:
@@ -812,6 +926,8 @@ class XAIOrchestrator:
             self._generate_gradcam(sample, sample_id)
         elif phase == 'attention':
             self._generate_attention(sample, sample_id)
+        elif phase == 'cross_attention':
+            self._generate_cross_attention(sample, sample_id)
         elif phase == 'shap':
             self._generate_shap(sample, sample_id)
         elif phase == 'lime':
@@ -852,6 +968,23 @@ class XAIOrchestrator:
                 self.model, self.tokenizer, self.device, output_dir)
             print('[XAI] Initialized AttentionExplainer (on-demand)')
         self._attention.explain_sample(sample, sample_id)
+
+    def _generate_cross_attention(self, sample: Dict[str, Any],
+                                  sample_id: str) -> None:
+        """Generate cross-attention artifacts (Phase 3 — token×patch)."""
+        if self._cross_attention is None:
+            if not self._attention_patched:
+                from xai.utils import enable_eager_attention
+                enable_eager_attention(self.model)
+                self._attention_patched = True
+
+            from xai.attention_explainer import CrossAttentionExplainer
+            output_dir = os.path.join(self.xai_dir, 'cross_attention')
+            os.makedirs(output_dir, exist_ok=True)
+            self._cross_attention = CrossAttentionExplainer(
+                self.model, self.tokenizer, self.device, output_dir)
+            print('[XAI] Initialized CrossAttentionExplainer (on-demand)')
+        self._cross_attention.explain_sample(sample, sample_id)
 
     def _generate_shap(self, sample: Dict[str, Any],
                        sample_id: str) -> None:
@@ -1183,7 +1316,7 @@ class CaseStudyRunner:
                 sid, os.path.join(self.xai_dir, 'shap'))
             ainfo = check_sample_artifacts(sid, self.xai_dir)
 
-            # Combined figures for each target
+            # Combined core figures for each target
             fig_paths = []
             for ti, fn in enumerate(FACTOR_NAMES):
                 fp = os.path.join(case_dir,
@@ -1195,6 +1328,19 @@ class CaseStudyRunner:
                     fig_paths.append(fp)
                 except Exception as ex:
                     print(f'[XAI] WARNING: Figure failed for {cid}/{fn}: {ex}')
+
+            # Cross-attention figure (separate to avoid overcrowding)
+            ca_fig_path = os.path.join(
+                case_dir, 'combined_cross_attention_figure.png')
+            try:
+                ca_result = create_cross_attention_figure(
+                    sid, self.xai_dir, dr, pr, self.image_dir,
+                    ca_fig_path, THESIS_DPI)
+                if ca_result:
+                    fig_paths.append(ca_fig_path)
+            except Exception as ex:
+                print(f'[XAI] WARNING: Cross-attention figure failed '
+                      f'for {cid}: {ex}')
 
             # Metadata (include generation log if available)
             meta = generate_case_metadata(
@@ -1217,7 +1363,7 @@ class CaseStudyRunner:
                 'metadata_path': mp, 'analysis_path': ap,
             })
 
-        # Save generation log summary
+        # Save generation log
         if generation_log:
             self._save_generation_log(generation_log)
 
