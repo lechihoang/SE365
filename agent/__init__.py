@@ -5,7 +5,7 @@ predictions and XAI evidence.
 Usage:
     from agent import ExplanationAgent, AgentConfig
 
-    config = AgentConfig(batch_model='gpt-4o-mini', report_model='gpt-4o')
+    config = AgentConfig(batch_model='gpt-4o', report_model='gpt-4o')
     agent = ExplanationAgent(config)
 
     result = agent.explain_sample(

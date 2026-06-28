@@ -30,7 +30,7 @@ class AgentConfig:
 
     def __init__(
         self,
-        batch_model: str = 'gpt-4o-mini',
+        batch_model: str = 'gpt-4o',
         report_model: str = 'gpt-4o',
         vision_model: str = 'gpt-4o',
         temperature: float = 0.3,

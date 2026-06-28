@@ -115,7 +115,7 @@ Optional fields:
 3. **LIME format variance** — different LIME versions may produce slightly different JSON structures
 4. **Offline mode unavailable** — requires internet access for OpenAI API
 5. **Hallucination risk** — despite grounding rules, LLM output should be human-reviewed for thesis
-6. **Cost** — each API call costs tokens; batch mode uses `gpt-4o-mini` to reduce cost
+6. **Cost** — each API call costs tokens; all modes use `gpt-4o`
 
 ## 12. Output Quality Improvements (V2)
 
@@ -138,7 +138,22 @@ Issues found during real testing and fixes applied:
 | 13 | Arbitrary confidence | Prompt defines clear rules (high=4-5 methods+agreement, medium=2-3, low=0-1), added `confidence_reasoning` field, validator checks for its presence | `prompt_builder.py`, `output_schema.py`, `validator.py` |
 | 14 | Awkward Vietnamese translations of technical terms | Prompt explicitly lists English terms to keep: Grad-CAM, Cross-Attention, SHAP, LIME, text-origin, image-origin, token, patch | `prompt_builder.py` |
 
-## 13. Future Improvements
+## 13. OpenAI Model Migration
+
+The project migrated from a two-tier model strategy (`gpt-4o-mini` for batch, `gpt-4o` for reports) to **`gpt-4o` exclusively**.
+
+**Reason:** `gpt-4o-mini` produced lower-quality explanations — hallucinated evidence, missed targets, inconsistent score wording. The quality improvement from `gpt-4o` justifies the cost increase.
+
+**Files updated:**
+- `agent/config.py` — all three defaults (`batch_model`, `report_model`, `vision_model`) set to `gpt-4o`
+- `agent/__init__.py` — docstring example updated
+- `agent/notebooks/AI_Agent_Demo.ipynb` — config cell updated, model name printed before first API call
+
+**Validation:** No active runtime path references `gpt-4o-mini`. The proposal document (`AI_agent_proposal.md`) retains historical references to the two-tier strategy for context.
+
+---
+
+## 14. Future Improvements
 
 - Vision mode: send Grad-CAM overlays to `gpt-4o` for richer visual description
 - Streaming: support streaming responses for interactive notebooks
