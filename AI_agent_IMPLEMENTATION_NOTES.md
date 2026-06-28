@@ -153,7 +153,28 @@ The project migrated from a two-tier model strategy (`gpt-4o-mini` for batch, `g
 
 ---
 
-## 14. Future Improvements
+## 14. Quality Improvements (V3)
+
+| # | Issue | Fix | Files |
+|---|---|---|---|
+| 1 | Schema violation: `None is not of type 'string'` | Added `_sanitize_nulls()` in `__init__.py` that recursively replaces None→"". Prompt instructs "no null values". | `__init__.py`, `prompt_builder.py` |
+| 2 | Evidence completeness too simplistic | Evidence completeness is now computed from actual file existence (ground truth from loader), not LLM guess. Visual artifact paths also resolved. | `__init__.py`, `evidence_loader.py` |
+| 3 | Noisy attention tokens (é@@, 70@@, etc.) | `_is_noisy_token()` filter in `evidence_loader.py` removes BPE subword fragments, single characters, pure numbers, and special tokens before passing to evidence builder. | `evidence_loader.py` |
+| 4 | Speculative language ("the model may have...") | System prompt now explicitly bans "may have", "could indicate". Requires "No direct XAI evidence available" for unsupported claims. | `prompt_builder.py` |
+| 5 | Cross-attention too generic | Prompt requires actual token names, patch coordinates, and attention scores. Evidence builder already provides this data; prompt now mandates its use. | `prompt_builder.py` |
+| 6 | Visual artifacts not integrated | `EvidenceLoader` now resolves paths to all XAI PNG figures. `__init__.py` injects `visual_artifacts` dict into output. Report generator renders a "Visual Evidence" section with figure references. | `evidence_loader.py`, `__init__.py`, `report_generator.py`, `output_schema.py` |
+| 7 | SHAP not per-target in report | Report generator now renders per-target SHAP table when `per_target` data is present. | `report_generator.py` |
+| 8 | Cross-method agreement too vague | Prompt now specifically asks to compare what each XAI method shows and state agreement/disagreement. Validator checks for field presence. | `prompt_builder.py`, `validator.py` |
+| 9 | Confidence arbitrary | Prompt defines explicit rules. Validator checks for `confidence_reasoning` field. | `prompt_builder.py`, `validator.py` |
+| 10 | Report mixes customer/technical language | Report now has two parts: "Phần A: Customer View" (simple Vietnamese, no technical terms) and "Phần B: Technical View" (full XAI analysis). JSON output includes `customer_view` field. | `report_generator.py`, `prompt_builder.py`, `output_schema.py`, `validator.py` |
+| 11 | No visual artifact paths in JSON | Schema includes `visual_artifacts` object. Evidence loader resolves paths for all XAI figures. | `output_schema.py`, `evidence_loader.py` |
+| 12 | Report missing figure references | Technical view includes numbered figure references with paths to actual XAI PNGs. | `report_generator.py` |
+| 13 | Generic recommendations | Prompt explicitly forbids recommending changes for topics not mentioned in the review. | `prompt_builder.py` |
+| 14 | Notebook doesn't show XAI figures | Demo cell now displays Grad-CAM, Attention, Cross-Attention, and SHAP figures inline before the report text. Shows both customer view and technical summary. | `AI_Agent_Demo.ipynb` |
+
+---
+
+## 15. Future Improvements
 
 - Vision mode: send Grad-CAM overlays to `gpt-4o` for richer visual description
 - Streaming: support streaming responses for interactive notebooks

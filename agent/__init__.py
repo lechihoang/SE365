@@ -110,14 +110,14 @@ class ExplanationAgent:
             model=model,
         )
 
-        # 5. Ensure required fields
+        # 5. Ensure required fields + sanitize nulls
         result.setdefault('sample_id', sample_id)
         result.setdefault('language', lang)
         result.setdefault('timestamp',
                           datetime.datetime.now().isoformat())
+        self._sanitize_nulls(result)
 
         # 5b. Override evidence_completeness with ground truth
-        #     (LLM may guess wrong about which artifacts exist)
         ec = {
             'gradcam': 'gradcam' in evidence,
             'attention': 'attention' in evidence,
@@ -128,6 +128,10 @@ class ExplanationAgent:
         total = sum(ec.values())
         ec['total'] = f'{total}/5'
         result['evidence_completeness'] = ec
+
+        # 5c. Inject visual artifact paths from evidence loader
+        result['visual_artifacts'] = evidence.get(
+            'visual_artifacts', {})
 
         # 6. Validate
         warnings = self.validator.validate(result, evidence)
@@ -141,6 +145,22 @@ class ExplanationAgent:
                 predictions, ground_truth)
 
         return result
+
+    @staticmethod
+    def _sanitize_nulls(d: Dict[str, Any]) -> None:
+        """Replace None values with empty strings to prevent schema
+        violations ('None is not of type string')."""
+        for key, val in list(d.items()):
+            if val is None:
+                d[key] = ''
+            elif isinstance(val, dict):
+                ExplanationAgent._sanitize_nulls(val)
+            elif isinstance(val, list):
+                for i, item in enumerate(val):
+                    if item is None:
+                        d[key][i] = ''
+                    elif isinstance(item, dict):
+                        ExplanationAgent._sanitize_nulls(item)
 
     def explain_case_study(
         self,

@@ -1,9 +1,9 @@
 """
 Generate Markdown and JSON report files from AI Agent output.
 
-Reports follow a fixed section order for thesis-readiness:
-Review → Predictions → Summary → Score Explanations → Evidence →
-SHAP → Cross-Method Agreement → Limitations → Recommendations.
+Reports follow a fixed section order and include two views:
+- Customer View (simple, no technical terms)
+- Technical View (full XAI analysis with figure references)
 """
 
 import os
@@ -39,13 +39,11 @@ class ReportGenerator:
         lang = output.get('language', 'vi')
         paths: Dict[str, str] = {}
 
-        # JSON
         json_path = os.path.join(output_dir, f'{sid}_report.json')
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(output, f, indent=2, ensure_ascii=False)
         paths['json'] = json_path
 
-        # Markdown
         md = self._build_markdown(
             output, review_text, predictions, ground_truth, lang)
         md_path = os.path.join(output_dir, f'{sid}_report_{lang}.md')
@@ -65,25 +63,21 @@ class ReportGenerator:
         os.makedirs(output_dir, exist_ok=True)
         paths: Dict[str, str] = {}
 
-        # JSON
         json_path = os.path.join(output_dir, 'batch_summary.json')
-        summary_data = {
-            'timestamp': datetime.datetime.now().isoformat(),
-            'total_samples': len(results),
-            'succeeded': sum(1 for r in results if 'error' not in r),
-            'failed': sum(1 for r in results if 'error' in r),
-            'results': results,
-        }
         with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(summary_data, f, indent=2, ensure_ascii=False)
+            json.dump({
+                'timestamp': datetime.datetime.now().isoformat(),
+                'total_samples': len(results),
+                'succeeded': sum(1 for r in results if 'error' not in r),
+                'failed': sum(1 for r in results if 'error' in r),
+                'results': results,
+            }, f, indent=2, ensure_ascii=False)
         paths['json'] = json_path
 
-        # CSV
         csv_path = os.path.join(output_dir, 'batch_summary.csv')
-        fieldnames = [
-            'sample_id', 'confidence', 'summary',
-            'food', 'price', 'atmos', 'service', 'overall', 'status',
-        ]
+        fieldnames = ['sample_id', 'confidence', 'summary',
+                      'food', 'price', 'atmos', 'service', 'overall',
+                      'status']
         with open(csv_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
@@ -114,52 +108,77 @@ class ReportGenerator:
     # ── Markdown builder ─────────────────────────────────────────────
 
     def _build_markdown(
-        self,
-        output: Dict[str, Any],
-        review_text: str,
+        self, output: Dict[str, Any], review_text: str,
         predictions: Optional[Dict[str, float]],
-        ground_truth: Optional[Dict[str, float]],
-        lang: str,
+        ground_truth: Optional[Dict[str, float]], lang: str,
     ) -> str:
         sid = output.get('sample_id', 'unknown')
         lines = [
             f'# AI Agent Report — {sid}', '',
-            f'**Language:** {lang}  ',
             f'**Confidence:** {output.get("confidence", "?")}  ',
             f'**Generated:** {output.get("timestamp", "")}', '',
+            '---', '',
         ]
+
+        # ════════════════════════════════════════════════════════════
+        # PART A: CUSTOMER VIEW
+        # ════════════════════════════════════════════════════════════
+        cv = output.get('customer_view', {})
+        lines.extend(['# Phần A: Tóm tắt cho người dùng', ''])
+        cv_summary = cv.get('summary', output.get('summary', ''))
+        if cv_summary:
+            lines.extend([cv_summary, ''])
+
+        highlights = cv.get('highlights', [])
+        if highlights:
+            lines.append('**Điểm nổi bật:**')
+            for h in highlights:
+                lines.append(f'- {h}')
+            lines.append('')
+
+        cv_recs = cv.get('recommendations', [])
+        if cv_recs:
+            lines.append('**Gợi ý:**')
+            for r in cv_recs:
+                lines.append(f'- {r}')
+            lines.append('')
+
+        lines.extend(['---', ''])
+
+        # ════════════════════════════════════════════════════════════
+        # PART B: TECHNICAL VIEW
+        # ════════════════════════════════════════════════════════════
+        lines.extend(['# Phần B: Phân tích kỹ thuật (Technical View)',
+                      ''])
 
         # 1. Review
         lines.extend(['## Review Text', ''])
-        if review_text:
-            lines.append(f'> {review_text[:500]}')
-        else:
-            lines.append('*Not available.*')
+        lines.append(f'> {review_text[:500]}' if review_text
+                     else '*Not available.*')
         lines.append('')
 
         # 2. Predictions
         lines.extend(['## Predictions', ''])
         if predictions:
-            lines.extend([
-                '| Target | Predicted |', '|--------|-----------|'])
+            lines.extend(['| Target | Predicted |',
+                          '|--------|-----------|'])
             for key in ['food_score', 'price_score', 'atmosphere_score',
                         'service_score', 'overall_satisfaction']:
-                lines.append(f'| {key} | {predictions.get(key, 0):.2f} |')
+                lines.append(
+                    f'| {key} | {predictions.get(key, 0):.2f} |')
         else:
             lines.append('*Not available.*')
         lines.append('')
 
-        # 3. Ground truth + error
+        # 3. Ground truth
         lines.extend(['## Ground Truth', ''])
-        if ground_truth:
-            lines.extend([
-                '| Target | True | Predicted | Error |',
-                '|--------|------|-----------|-------|',
-            ])
+        if ground_truth and predictions:
+            lines.extend(['| Target | True | Predicted | Error |',
+                          '|--------|------|-----------|-------|'])
             for key in ['food_score', 'price_score', 'atmosphere_score',
                         'service_score', 'overall_satisfaction']:
                 gt = ground_truth.get(key, 0)
-                pred = predictions.get(key, 0) if predictions else 0
+                pred = predictions.get(key, 0)
                 lines.append(
                     f'| {key} | {gt:.2f} | {pred:.2f} '
                     f'| {abs(pred - gt):.3f} |')
@@ -168,9 +187,8 @@ class ReportGenerator:
         lines.append('')
 
         # 4. Summary
-        lines.extend(['## Summary', ''])
-        lines.append(output.get('summary', '*Not available.*'))
-        lines.append('')
+        lines.extend(['## Summary', '',
+                      output.get('summary', '*Not available.*'), ''])
 
         # 5. Score explanations (all 5)
         lines.extend(['## Score Explanations', ''])
@@ -178,11 +196,9 @@ class ReportGenerator:
         for factor in _FACTOR_NAMES:
             dn = _DISPLAY_NAMES.get(factor, factor)
             entry = scores.get(factor, {})
-            score_val = entry.get('score', '?')
-            level_str = entry.get('level', '?')
-            level_vi = level_display(level_str, lang) if isinstance(
-                level_str, str) else '?'
-            lines.append(f'### {dn}: {score_val} ({level_vi})')
+            sv = entry.get('score', '?')
+            lv = level_display(entry.get('level', '?'), lang)
+            lines.append(f'### {dn}: {sv} ({lv})')
             lines.append('')
             lines.append(entry.get('explanation',
                                    '*No explanation generated.*'))
@@ -192,17 +208,16 @@ class ReportGenerator:
         lines.extend(['## Evidence Completeness', ''])
         ec = output.get('evidence_completeness', {})
         if ec:
-            for method in ['gradcam', 'attention', 'cross_attention',
-                           'shap', 'lime']:
-                avail = ec.get(method, False)
-                mark = 'Available' if avail else 'Missing'
-                lines.append(f'- **{method}**: {mark}')
+            for m in ['gradcam', 'attention', 'cross_attention',
+                      'shap', 'lime']:
+                status = 'Available' if ec.get(m) else 'Missing'
+                lines.append(f'- **{m}**: {status}')
             lines.append(f'- **Total**: {ec.get("total", "?")}')
         else:
             lines.append('*Not available.*')
         lines.append('')
 
-        # 7. SHAP interpretation
+        # 7. SHAP
         lines.extend(['## SHAP Modality Contribution', ''])
         mod = output.get('modality_contribution', {})
         if mod:
@@ -216,14 +231,14 @@ class ReportGenerator:
             if per_tgt:
                 lines.extend([
                     '', '| Target | Text-origin | Image-origin |',
-                    '|--------|-------------|--------------|',
-                ])
-                for factor in _FACTOR_NAMES:
-                    t = per_tgt.get(factor, {})
-                    lines.append(
-                        f'| {_DISPLAY_NAMES.get(factor, factor)} '
-                        f'| {t.get("text_origin_pct", "?")}% '
-                        f'| {t.get("image_origin_pct", "?")}% |')
+                    '|--------|-------------|--------------|'])
+                for f in _FACTOR_NAMES:
+                    t = per_tgt.get(f, {})
+                    if isinstance(t, dict):
+                        lines.append(
+                            f'| {_DISPLAY_NAMES.get(f, f)} '
+                            f'| {t.get("text_origin_pct", "?")}% '
+                            f'| {t.get("image_origin_pct", "?")}% |')
             lines.append('')
             interp = mod.get('interpretation', '')
             if interp:
@@ -232,7 +247,7 @@ class ReportGenerator:
             lines.append('*Not available.*')
         lines.append('')
 
-        # 8. Cross-modal insights
+        # 8. Cross-attention insights
         lines.extend(['## Cross-Attention Insights', ''])
         cmi = output.get('cross_modal_insights', '')
         lines.append(cmi if cmi else '*Not available.*')
@@ -244,7 +259,43 @@ class ReportGenerator:
         lines.append(ma if ma else '*Not available.*')
         lines.append('')
 
-        # 10. Limitations
+        # 10. Visual artifacts
+        visuals = output.get('visual_artifacts', {})
+        if visuals:
+            lines.extend(['## Visual Evidence (XAI Figures)', ''])
+            fig_num = 1
+            labels = {
+                'gradcam_food': 'Grad-CAM (Food)',
+                'gradcam_overall': 'Grad-CAM (Overall)',
+                'gradcam_comparison': 'Grad-CAM 5-Target Comparison',
+                'attention_heatmap': 'Attention Heatmap',
+                'attention_word_bar': 'Attention Word Importance',
+                'cross_attention_heatmap': 'Cross-Attention Top-K Heatmap',
+                'cross_attention_bipartite': 'Cross-Attention Bipartite',
+                'cross_attention_overlay': 'Token→Patch Overlay Grid',
+                'cross_attention_patch_importance': 'Patch Importance',
+                'shap_chart': 'SHAP Modality Contribution',
+                'combined_core': 'Combined Case Study (Core)',
+                'combined_cross_attention': 'Combined Cross-Attention',
+            }
+            for key, label in labels.items():
+                path = visuals.get(key)
+                if path:
+                    lines.append(
+                        f'**Figure {fig_num}:** {label}  ')
+                    lines.append(f'`{path}`')
+                    lines.append('')
+                    fig_num += 1
+            for key, path in visuals.items():
+                if key.startswith('lime_') and path:
+                    factor = key.split('_', 2)[-1] if '_' in key else key
+                    lines.append(
+                        f'**Figure {fig_num}:** LIME ({factor})  ')
+                    lines.append(f'`{path}`')
+                    lines.append('')
+                    fig_num += 1
+
+        # 11. Limitations
         lines.extend(['## Limitations', ''])
         lims = output.get('limitations', [])
         if lims:
@@ -254,7 +305,7 @@ class ReportGenerator:
             lines.append('*No limitations listed.*')
         lines.append('')
 
-        # 11. Recommendations
+        # 12. Recommendations
         lines.extend(['## Recommendations', ''])
         recs = output.get('recommendations', [])
         if recs:
@@ -264,16 +315,15 @@ class ReportGenerator:
             lines.append('*No recommendations.*')
         lines.append('')
 
-        # 12. Confidence reasoning
-        lines.extend(['## Confidence', ''])
-        lines.append(
-            f'**Level:** {output.get("confidence", "?")}')
+        # 13. Confidence
+        lines.extend(['## Confidence', '',
+                      f'**Level:** {output.get("confidence", "?")}'])
         cr = output.get('confidence_reasoning', '')
         if cr:
-            lines.append(f'\n{cr}')
+            lines.extend(['', cr])
         lines.append('')
 
-        # 13. Validation warnings
+        # 14. Validation warnings
         warns = output.get('validation_warnings', [])
         if warns:
             lines.extend(['## Validation Warnings', ''])

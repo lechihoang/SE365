@@ -4,11 +4,11 @@ JSON schema for AI Agent structured output and validation helpers.
 
 # Score level definitions — machine-readable enum + display labels
 SCORE_LEVELS = {
-    'very_poor':     {'range': (0, 2),  'vi': 'Rất kém',           'en': 'Very Poor'},
-    'poor':          {'range': (2, 4),  'vi': 'Kém',               'en': 'Poor'},
-    'average':       {'range': (4, 6),  'vi': 'Trung bình',        'en': 'Average'},
-    'good':          {'range': (6, 8),  'vi': 'Khá',               'en': 'Good'},
-    'excellent':     {'range': (8, 10), 'vi': 'Xuất sắc',          'en': 'Excellent'},
+    'very_poor':     {'range': (0, 2),  'vi': 'Rất kém',      'en': 'Very Poor'},
+    'poor':          {'range': (2, 4),  'vi': 'Kém',           'en': 'Poor'},
+    'average':       {'range': (4, 6),  'vi': 'Trung bình',    'en': 'Average'},
+    'good':          {'range': (6, 8),  'vi': 'Khá',           'en': 'Good'},
+    'excellent':     {'range': (8, 10), 'vi': 'Xuất sắc',      'en': 'Excellent'},
 }
 
 LEVEL_ENUM = list(SCORE_LEVELS.keys())
@@ -35,6 +35,10 @@ def level_display(level: str, lang: str = 'vi') -> str:
     return info.get(lang, info.get('vi', level))
 
 
+# Allow string-or-null for optional text fields to prevent
+# "None is not of type 'string'" schema violations
+_STRING_OR_EMPTY = {'type': 'string', 'default': ''}
+
 SCORE_EXPLANATION_SCHEMA = {
     'type': 'object',
     'required': ['score', 'level', 'explanation'],
@@ -45,9 +49,9 @@ SCORE_EXPLANATION_SCHEMA = {
         'evidence': {
             'type': 'object',
             'properties': {
-                'gradcam': {'type': 'string'},
+                'gradcam': _STRING_OR_EMPTY,
                 'attention': {'type': 'array', 'items': {'type': 'string'}},
-                'cross_attention': {'type': 'string'},
+                'cross_attention': _STRING_OR_EMPTY,
                 'shap': {
                     'type': 'object',
                     'properties': {
@@ -94,10 +98,7 @@ AGENT_OUTPUT_SCHEMA = {
             'properties': {
                 'text_origin_pct': {'type': 'number'},
                 'image_origin_pct': {'type': 'number'},
-                'per_target': {
-                    'type': 'object',
-                    'description': 'SHAP contribution per target',
-                },
+                'per_target': {'type': 'object'},
                 'interpretation': {'type': 'string'},
             },
         },
@@ -112,18 +113,24 @@ AGENT_OUTPUT_SCHEMA = {
                 'total': {'type': 'string'},
             },
         },
+        'visual_artifacts': {'type': 'object'},
         'cross_modal_insights': {'type': 'string'},
         'method_agreement': {'type': 'string'},
         'limitations': {'type': 'array', 'items': {'type': 'string'}},
         'recommendations': {'type': 'array', 'items': {'type': 'string'}},
-        'confidence': {
-            'type': 'string',
-            'enum': ['low', 'medium', 'high'],
-        },
+        'confidence': {'type': 'string', 'enum': ['low', 'medium', 'high']},
         'confidence_reasoning': {'type': 'string'},
+        'customer_view': {
+            'type': 'object',
+            'properties': {
+                'summary': {'type': 'string'},
+                'highlights': {'type': 'array', 'items': {'type': 'string'}},
+                'recommendations': {
+                    'type': 'array', 'items': {'type': 'string'}},
+            },
+        },
         'timestamp': {'type': 'string'},
         'validation_warnings': {
-            'type': 'array', 'items': {'type': 'string'},
-        },
+            'type': 'array', 'items': {'type': 'string'}},
     },
 }
