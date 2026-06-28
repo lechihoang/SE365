@@ -114,6 +114,11 @@ AGENT_OUTPUT_SCHEMA = {
             },
         },
         'visual_artifacts': {'type': 'object'},
+        'reasoning_graph': {'type': 'object'},
+        'agreement_matrix': {
+            'type': 'array',
+            'items': {'type': 'object'},
+        },
         'cross_modal_insights': {'type': 'string'},
         'method_agreement': {'type': 'string'},
         'limitations': {'type': 'array', 'items': {'type': 'string'}},

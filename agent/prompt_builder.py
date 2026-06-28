@@ -151,6 +151,7 @@ class PromptBuilder:
         case_type: Optional[str] = None,
         language: Optional[str] = None,
         num_images: int = 1,
+        reasoning_graph: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Build the messages list for an OpenAI chat completion call."""
         lang = language or self.config.language
@@ -240,6 +241,17 @@ class PromptBuilder:
             language_name=lang_name,
             schema_summary=schema_summary,
         )
+
+        # Append reasoning graph if available
+        if reasoning_graph:
+            rg_text = json.dumps(reasoning_graph, indent=1,
+                                 ensure_ascii=False, default=str)
+            user_content += (
+                f'\n\n## Pre-computed Reasoning Graph\n'
+                f'Follow this reasoning structure strictly. '
+                f'Use the interpretation_hint for each target. '
+                f'Only add detail from the XAI evidence above.\n'
+                f'```json\n{rg_text[:3000]}\n```')
 
         if case_type:
             user_content += (

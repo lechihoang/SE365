@@ -26,6 +26,7 @@ from typing import Dict, Any, List, Optional
 from agent.config import AgentConfig
 from agent.evidence_loader import EvidenceLoader
 from agent.evidence_builder import EvidenceBuilder
+from agent.reasoning import build_reasoning_graph
 from agent.prompt_builder import PromptBuilder
 from agent.openai_client import OpenAIClient
 from agent.output_schema import AGENT_OUTPUT_SCHEMA
@@ -87,10 +88,13 @@ class ExplanationAgent:
         # 1. Load evidence
         evidence = self.evidence_loader.load(sample_id, xai_dir)
 
-        # 2. Build compressed evidence
+        # 2. Build reasoning graph (pre-LLM structured analysis)
+        reasoning = build_reasoning_graph(predictions, evidence, review_text)
+
+        # 3. Build compressed evidence
         blocks = self.evidence_builder.build(evidence)
 
-        # 3. Build prompt
+        # 4. Build prompt (includes reasoning graph)
         prompt = self.prompt_builder.build(
             sample_id=sample_id,
             review_text=review_text,
@@ -100,9 +104,10 @@ class ExplanationAgent:
             case_type=case_type,
             language=lang,
             num_images=num_images,
+            reasoning_graph=reasoning,
         )
 
-        # 4. Call OpenAI
+        # 5. Call OpenAI
         model = (self.config.report_model if mode == 'vision'
                  else self.config.batch_model)
         result = self.client.generate_json(
@@ -110,14 +115,14 @@ class ExplanationAgent:
             model=model,
         )
 
-        # 5. Ensure required fields + sanitize nulls
+        # 6. Ensure required fields + sanitize nulls
         result.setdefault('sample_id', sample_id)
         result.setdefault('language', lang)
         result.setdefault('timestamp',
                           datetime.datetime.now().isoformat())
         self._sanitize_nulls(result)
 
-        # 5b. Override evidence_completeness with ground truth
+        # 6b. Override evidence_completeness with ground truth
         ec = {
             'gradcam': 'gradcam' in evidence,
             'attention': 'attention' in evidence,
@@ -129,16 +134,19 @@ class ExplanationAgent:
         ec['total'] = f'{total}/5'
         result['evidence_completeness'] = ec
 
-        # 5c. Inject visual artifact paths from evidence loader
+        # 6c. Inject visual artifacts and reasoning graph
         result['visual_artifacts'] = evidence.get(
             'visual_artifacts', {})
+        result['reasoning_graph'] = reasoning.get('targets', {})
+        result['agreement_matrix'] = reasoning.get(
+            'agreement_matrix', [])
 
-        # 6. Validate
+        # 7. Validate
         warnings = self.validator.validate(result, evidence)
         if warnings:
             result['validation_warnings'] = warnings
 
-        # 7. Save reports if output_dir given
+        # 8. Save reports if output_dir given
         if output_dir:
             self.reporter.save_sample_report(
                 result, output_dir, review_text,

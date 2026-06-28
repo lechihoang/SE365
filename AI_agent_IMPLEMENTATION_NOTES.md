@@ -174,7 +174,63 @@ The project migrated from a two-tier model strategy (`gpt-4o-mini` for batch, `g
 
 ---
 
-## 15. Future Improvements
+## 15. Reasoning Layer (V4)
+
+### Architecture change
+
+Added an explicit pre-LLM reasoning layer that structures evidence before the LLM verbalizes it:
+
+```
+XAI Evidence → Evidence Builder → Reasoning Graph → Prompt → LLM → Report
+```
+
+This replaces the previous flow where the LLM invented reasoning from raw evidence.
+
+### New module: `agent/reasoning.py`
+
+`build_reasoning_graph()` produces for each of the 5 targets:
+- **supporting_evidence**: ranked list of evidence items from attention, cross-attention, SHAP, LIME, Grad-CAM
+- **contradicting_evidence**: detected conflicts (e.g., SHAP text-origin 85% but no food keywords in review)
+- **missing_evidence**: which XAI methods have no data for this target
+- **evidence_strength**: overall strength (high/moderate/weak/very_weak)
+- **review_keywords**: target-relevant Vietnamese words found in the review text
+- **interpretation_hint**: pre-computed reasoning sentence for the LLM to follow
+
+Also produces an **agreement_matrix** — per-target per-method strength summary.
+
+### Evidence ranking
+
+Evidence is ranked by reliability and relevance:
+1. Direct review text + Attention/LIME match (rank 1)
+2. SHAP target contribution + Cross-Attention (rank 2)
+3. LIME perturbation weights (rank 3)
+4. Grad-CAM image evidence (rank 4)
+
+### Conflict detection
+
+Detects:
+- SHAP text-origin high but no target keywords in review
+- Evidence present but not relevant to target (weak strength)
+
+### Integration
+
+- `__init__.py`: calls `build_reasoning_graph()` before prompt building, injects `reasoning_graph` and `agreement_matrix` into result
+- `prompt_builder.py`: accepts `reasoning_graph` parameter, serializes it into the prompt with instruction to follow it strictly
+- `output_schema.py`: added `reasoning_graph` and `agreement_matrix` fields
+- `validator.py`: checks agreement_matrix has all 5 targets
+- `report_generator.py`: renders agreement matrix table in Technical View, supports dict-format recommendations with evidence references
+
+### Files changed
+- `agent/reasoning.py` — new file
+- `agent/__init__.py` — reasoning graph integration
+- `agent/prompt_builder.py` — accepts and serializes reasoning graph
+- `agent/output_schema.py` — new schema fields
+- `agent/validator.py` — agreement matrix validation
+- `agent/report_generator.py` — agreement matrix rendering, structured recommendations
+
+---
+
+## 16. Future Improvements
 
 - Vision mode: send Grad-CAM overlays to `gpt-4o` for richer visual description
 - Streaming: support streaming responses for interactive notebooks

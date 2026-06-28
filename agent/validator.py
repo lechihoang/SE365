@@ -33,6 +33,7 @@ class OutputValidator:
         warnings.extend(self._check_evidence_completeness(output))
         warnings.extend(self._check_limitations(output))
         warnings.extend(self._check_customer_view(output))
+        warnings.extend(self._check_agreement_matrix(output))
         if evidence:
             warnings.extend(self._check_shap_grounding(output, evidence))
 
@@ -105,6 +106,16 @@ class OutputValidator:
             return ['Missing "customer_view" section']
         if not cv.get('summary'):
             return ['customer_view.summary is empty']
+        return []
+
+    def _check_agreement_matrix(self, output: Dict[str, Any]) -> List[str]:
+        am = output.get('agreement_matrix', [])
+        if not am:
+            return ['Missing "agreement_matrix"']
+        covered = {row.get('target') for row in am if isinstance(row, dict)}
+        missing = [f for f in _FACTOR_NAMES if f not in covered]
+        if missing:
+            return [f'Agreement matrix missing targets: {missing}']
         return []
 
     def _check_shap_grounding(

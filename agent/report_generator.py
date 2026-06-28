@@ -259,7 +259,28 @@ class ReportGenerator:
         lines.append(ma if ma else '*Not available.*')
         lines.append('')
 
-        # 10. Visual artifacts
+        # 10. Agreement matrix
+        am = output.get('agreement_matrix', [])
+        if am:
+            lines.extend(['## Agreement Matrix', '',
+                          '| Target | Grad-CAM | Attention | '
+                          'Cross-Attention | SHAP | LIME | Overall |',
+                          '|--------|----------|-----------|'
+                          '-----------------|------|------|---------|'])
+            for row in am:
+                t = _DISPLAY_NAMES.get(row.get('target', ''),
+                                       row.get('target', '?'))
+                lines.append(
+                    f'| {t} '
+                    f'| {row.get("gradcam", "?")} '
+                    f'| {row.get("attention", "?")} '
+                    f'| {row.get("cross_attention", "?")} '
+                    f'| {row.get("shap", "?")} '
+                    f'| {row.get("lime", "?")} '
+                    f'| {row.get("overall_agreement", "?")} |')
+            lines.append('')
+
+        # 11. Visual artifacts
         visuals = output.get('visual_artifacts', {})
         if visuals:
             lines.extend(['## Visual Evidence (XAI Figures)', ''])
@@ -295,7 +316,7 @@ class ReportGenerator:
                     lines.append('')
                     fig_num += 1
 
-        # 11. Limitations
+        # 12. Limitations
         lines.extend(['## Limitations', ''])
         lims = output.get('limitations', [])
         if lims:
@@ -305,17 +326,24 @@ class ReportGenerator:
             lines.append('*No limitations listed.*')
         lines.append('')
 
-        # 12. Recommendations
+        # 13. Recommendations
         lines.extend(['## Recommendations', ''])
         recs = output.get('recommendations', [])
         if recs:
             for rec in recs:
-                lines.append(f'- {rec}')
+                if isinstance(rec, dict):
+                    lines.append(f'- {rec.get("recommendation", rec)}')
+                    ev = rec.get('evidence', [])
+                    if ev:
+                        for e in ev:
+                            lines.append(f'  - Evidence: {e}')
+                else:
+                    lines.append(f'- {rec}')
         else:
             lines.append('*No recommendations.*')
         lines.append('')
 
-        # 13. Confidence
+        # 14. Confidence
         lines.extend(['## Confidence', '',
                       f'**Level:** {output.get("confidence", "?")}'])
         cr = output.get('confidence_reasoning', '')
@@ -323,7 +351,7 @@ class ReportGenerator:
             lines.extend(['', cr])
         lines.append('')
 
-        # 14. Validation warnings
+        # 15. Validation warnings
         warns = output.get('validation_warnings', [])
         if warns:
             lines.extend(['## Validation Warnings', ''])
