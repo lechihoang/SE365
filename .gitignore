@@ -2,6 +2,7 @@
 checkpoints/
 __pycache__/
 *.pyc
+.env
 
 # Mac OS
 .DS_Store
