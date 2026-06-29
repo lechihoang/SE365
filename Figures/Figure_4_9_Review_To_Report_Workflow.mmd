@@ -1,0 +1,72 @@
+flowchart TB
+    subgraph Input["Lớp 1 — Input"]
+        R["Review text"]
+        I["1–4 review images"]
+    end
+    subgraph Pre["Lớp 2 — Preprocessing"]
+        Tok["Tokenizer<br/>IDs + mask"]
+        ImgP["Image processor<br/>pixel tensor + num_images"]
+    end
+    subgraph Model["Lớp 3 — Multimodal Model"]
+        TB["Text Branch"]
+        IB["Image Branch"]
+        FU["Token–Patch Cross-Attention"]
+        PH["Prediction Head"]
+    end
+    subgraph Pred["Lớp 4 — Output"]
+        S1["Food"]
+        S2["Price"]
+        S3["Atmosphere"]
+        S4["Service"]
+        S5["Overall"]
+    end
+    subgraph Explain["Lớp 5 — XAI"]
+        G["Grad-CAM"]
+        A["Self-Attention"]
+        C["Cross-Attention"]
+        SH["SHAP"]
+        L["LIME"]
+    end
+    subgraph Report["Lớp 6 — AI Agent"]
+        EV["Evidence + Reasoning Graph"]
+        CV["Customer View"]
+        TV["Technical View"]
+    end
+
+    R --> Tok --> TB
+    I --> ImgP --> IB
+    TB --> FU
+    IB --> FU
+    FU --> PH
+    PH --> S1
+    PH --> S2
+    PH --> S3
+    PH --> S4
+    PH --> S5
+    IB -.-> G
+    TB -.-> A
+    FU -.-> C
+    FU -.-> SH
+    R -.-> L
+    I -.-> L
+    G --> EV
+    A --> EV
+    C --> EV
+    SH --> EV
+    L --> EV
+    S1 --> EV
+    S2 --> EV
+    S3 --> EV
+    S4 --> EV
+    S5 --> EV
+    EV --> CV
+    EV --> TV
+
+    classDef in fill:#e8f1ff,stroke:#275dad,color:#111;
+    classDef proc fill:#fff4d6,stroke:#b7791f,color:#111;
+    classDef xai fill:#f3e8ff,stroke:#805ad5,color:#111;
+    classDef out fill:#e7f7ec,stroke:#2f855a,color:#111;
+    class R,I,Tok,ImgP in;
+    class TB,IB,FU,PH,S1,S2,S3,S4,S5 proc;
+    class G,A,C,SH,L xai;
+    class EV,CV,TV out;

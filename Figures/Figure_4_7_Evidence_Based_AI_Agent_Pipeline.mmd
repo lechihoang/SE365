@@ -1,0 +1,21 @@
+sequenceDiagram
+    participant U as Client
+    participant L as EvidenceLoader
+    participant B as EvidenceBuilder
+    participant R as ReasoningGraph
+    participant M as Mô hình ngôn ngữ
+    participant V as Validator
+    participant G as ReportGenerator
+
+    U->>L: sample_id, xai_dir
+    L-->>U: artifact có/thiếu + đường dẫn hình
+    U->>R: prediction + review + evidence
+    R-->>U: bằng chứng hỗ trợ/mâu thuẫn/thiếu
+    U->>B: evidence thô
+    B-->>U: Top-K evidence đã nén
+    U->>M: prompt + reasoning graph
+    M-->>U: JSON diễn giải
+    U->>V: JSON + evidence gốc
+    V-->>U: cảnh báo validation
+    U->>G: kết quả đã kiểm tra
+    G-->>U: báo cáo Markdown/JSON

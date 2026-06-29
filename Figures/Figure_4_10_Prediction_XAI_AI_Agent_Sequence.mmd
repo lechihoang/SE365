@@ -1,0 +1,20 @@
+sequenceDiagram
+    actor Client
+    participant DS as Dataset/Preprocessor
+    participant MM as Multimodal Model
+    participant XS as XAI Services
+    participant EA as Explanation Agent
+    participant VR as Validator/Reporter
+
+    Client->>DS: review text + images
+    DS->>MM: input_ids, mask, pixels, num_images
+    MM-->>Client: five predicted scores
+    Client->>XS: sample + checkpoint + targets
+    XS->>MM: forward/backward/perturbation calls
+    MM-->>XS: activations, gradients, predictions
+    XS-->>EA: structured artifacts
+    Client->>EA: scores + review context
+    EA->>EA: evidence compression + reasoning graph
+    EA-->>VR: structured explanation JSON
+    VR->>VR: schema + grounding checks
+    VR-->>Client: Customer View + Technical View

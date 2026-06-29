@@ -1,0 +1,12 @@
+flowchart TD
+    D["Train/validation split"] --> T["Huấn luyện TextModel"]
+    D --> I["Huấn luyện ImageModel"]
+    T --> TC["best_model_train_text.pth"]
+    I --> IC["best_model_train_image.pth"]
+    TC --> F["Khởi tạo FusionModel"]
+    IC --> F
+    F --> U["Freeze toàn bộ<br/>unfreeze có chọn lọc"]
+    U --> O["AdamW + cosine warmup<br/>AMP + gradient accumulation"]
+    O --> V["Validation mỗi epoch"]
+    V -->|Mean MAE cải thiện| C["Lưu checkpoint tốt nhất"]
+    V -->|Không cải thiện đủ patience| S["Early stopping"]

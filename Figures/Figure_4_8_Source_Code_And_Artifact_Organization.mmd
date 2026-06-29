@@ -1,0 +1,12 @@
+flowchart TB
+    ROOT["SE365/"]
+    ROOT --> DATA["data_raw/<br/>data_processed/"]
+    ROOT --> MODEL["Models/<br/>Text, Image, 5 Fusion"]
+    ROOT --> TRAIN["main.py / Trainer.py / test.py"]
+    ROOT --> NOTE["notebook/<br/>data và thí nghiệm"]
+    ROOT --> XAI["xai/<br/>Pha 1–6"]
+    ROOT --> AGENT["agent/<br/>ExplanationAgent"]
+    ROOT --> DOC["doc/<br/>proposal và implementation notes"]
+    TRAIN --> EXP["experiments/EXP_ID/<br/>config, log, checkpoint,<br/>metrics, predictions"]
+    XAI --> XAIO["experiments/EXP_ID/xai/<br/>gradcam, attention, shap,<br/>lime, case_studies"]
+    AGENT --> AGO["agent_reports/<br/>JSON và Markdown"]

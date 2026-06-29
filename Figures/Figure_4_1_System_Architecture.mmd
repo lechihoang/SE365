@@ -1,0 +1,55 @@
+flowchart TB
+    subgraph IN["Đầu vào"]
+        T["Bình luận tiếng Việt"]
+        I["1–4 ảnh review"]
+    end
+
+    subgraph PRED["Tầng dự đoán"]
+        TE["Text Encoder<br/>token và pooled feature"]
+        IE["Image Encoder<br/>patch và pooled feature"]
+        CA["Fusion<br/>Concat / GMU / Gated / FiLM / Cross-Attention"]
+        H["Prediction Head<br/>5 điểm hồi quy"]
+    end
+
+    subgraph XAI["Tầng giải thích"]
+        GC["Grad-CAM"]
+        AT["Self-Attention"]
+        CAT["Cross-Attention token–patch"]
+        SH["SHAP"]
+        LI["LIME"]
+        CS["Case Study"]
+    end
+
+    subgraph AG["Tầng diễn giải"]
+        EB["Evidence Builder"]
+        RG["Reasoning Graph"]
+        LLM["Mô hình ngôn ngữ"]
+        RP["Báo cáo JSON/Markdown"]
+    end
+
+    T --> TE
+    I --> IE
+    TE --> CA
+    IE --> CA
+    CA --> H
+    IE -.-> GC
+    TE -.-> AT
+    CA -.-> CAT
+    CA -.-> SH
+    T -.-> LI
+    I -.-> LI
+    GC --> CS
+    AT --> CS
+    CAT --> CS
+    SH --> CS
+    LI --> CS
+    CS --> EB --> RG --> LLM --> RP
+
+    classDef input fill:#e8f1ff,stroke:#275dad,color:#111;
+    classDef model fill:#fff4d6,stroke:#b7791f,color:#111;
+    classDef explain fill:#f3e8ff,stroke:#805ad5,color:#111;
+    classDef report fill:#e7f7ec,stroke:#2f855a,color:#111;
+    class T,I input;
+    class TE,IE,CA,H model;
+    class GC,AT,CAT,SH,LI,CS explain;
+    class EB,RG,LLM,RP report;

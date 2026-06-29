@@ -1,0 +1,18 @@
+flowchart LR
+    A["Foody: nhà hàng, review, ảnh"] --> B["Crawl có checkpoint"]
+    B --> C["Làm sạch kỹ thuật và nội dung"]
+    C --> D["reviews_clean_enhanced<br/>9.946 review"]
+    C --> E["multimodal_reviews<br/>22.150 cặp review–ảnh"]
+    D --> F["Sinh Overall Satisfaction<br/>và bằng chứng luật"]
+    E --> G["Merge theo review_id"]
+    F --> G
+    G --> H["Loại thiếu nhãn và URL trùng"]
+    H --> I["Gom ảnh theo review"]
+    I --> J["Chia train/validation/test<br/>seed 42"]
+
+    classDef source fill:#e8f1ff,stroke:#275dad,color:#111;
+    classDef process fill:#fff4d6,stroke:#b7791f,color:#111;
+    classDef output fill:#e7f7ec,stroke:#2f855a,color:#111;
+    class A source;
+    class B,C,F,G,H,I process;
+    class D,E,J output;

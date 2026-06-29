@@ -1,0 +1,22 @@
+flowchart LR
+    UI["Web/Notebook Client"] --> API["API Gateway"]
+    API --> PS["Prediction Service"]
+    PS --> MR["Model Registry"]
+    PS --> AS["Artifact Store"]
+    API --> Q["Async Queue"]
+    Q --> XS["XAI Worker"]
+    XS --> AS
+    Q --> ES["Explanation Service"]
+    ES --> AS
+    ES --> LLM["External/Internal LLM"]
+    API --> OBS["Monitoring"]
+    PS --> OBS
+    XS --> OBS
+    ES --> OBS
+
+    classDef edge fill:#e8f1ff,stroke:#275dad,color:#111;
+    classDef service fill:#fff4d6,stroke:#b7791f,color:#111;
+    classDef store fill:#e7f7ec,stroke:#2f855a,color:#111;
+    class UI,API edge;
+    class PS,XS,ES,Q,OBS service;
+    class MR,AS,LLM store;

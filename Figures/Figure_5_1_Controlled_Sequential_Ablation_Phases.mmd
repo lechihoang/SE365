@@ -1,0 +1,15 @@
+flowchart LR
+    B["Phase 1<br/>3 Baseline"] --> I["Phase 2<br/>Image Backbone"]
+    I -->|Chọn I*| T["Phase 3<br/>Text Backbone"]
+    T -->|Chọn T*| F["Phase 4<br/>Fusion Mechanism"]
+    F -->|Chọn F*| L["Phase 5<br/>Loss Function"]
+    L -->|Sequential winner C*| P["Phase 6<br/>Promising Combinations"]
+    P --> M["Phase 7<br/>Multi-seed + Locked Test"]
+    M --> X["XAI + AI Agent Evaluation"]
+
+    classDef baseline fill:#e8f1ff,stroke:#275dad,color:#111;
+    classDef ablation fill:#fff4d6,stroke:#b7791f,color:#111;
+    classDef validation fill:#e7f7ec,stroke:#2f855a,color:#111;
+    class B baseline;
+    class I,T,F,L ablation;
+    class P,M,X validation;

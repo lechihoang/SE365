@@ -1,0 +1,16 @@
+flowchart TB
+    P1["Pha 1<br/>Hạ tầng và kiểm chứng"] --> P2["Pha 2<br/>Grad-CAM trên image encoder"]
+    P1 --> P3["Pha 3<br/>Self-Attention và token–patch"]
+    P1 --> P4["Pha 4<br/>SHAP trên fused embedding"]
+    P1 --> P5["Pha 5<br/>LIME ảnh và văn bản"]
+    P2 --> P6["Pha 6<br/>Chọn và tổng hợp case study"]
+    P3 --> P6
+    P4 --> P6
+    P5 --> P6
+    P6 --> P7["Pha 7<br/>Sinh báo cáo — tương lai"]
+    P7 --> P8["Pha 8<br/>Trực quan luận văn — tương lai"]
+
+    classDef done fill:#e7f7ec,stroke:#2f855a,color:#111;
+    classDef future fill:#fff4d6,stroke:#b7791f,color:#111;
+    class P1,P2,P3,P4,P5,P6 done;
+    class P7,P8 future;

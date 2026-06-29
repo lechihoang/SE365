@@ -1,0 +1,10 @@
+flowchart LR
+    A["Ảnh review"] --> B["Image Encoder"]
+    B --> C["Spatial feature map"]
+    C --> D["Forward hook: activation"]
+    E["Target score c"] --> F["Backward"]
+    F --> G["Backward hook: gradient"]
+    D --> H["Channel weights"]
+    G --> H
+    H --> I["ReLU weighted sum"]
+    I --> J["Upsample + overlay"]

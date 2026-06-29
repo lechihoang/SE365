@@ -1,0 +1,8 @@
+flowchart LR
+    A["test.csv + ảnh"] --> B["Tokenizer và image processor"]
+    B --> C["Dựng kiến trúc theo cấu hình"]
+    D["Checkpoint"] --> C
+    C --> E["Suy luận không gradient"]
+    E --> F["MAE, RMSE, R²"]
+    E --> G["test_predictions.csv"]
+    E --> H["Biểu đồ MAE, scatter, error"]

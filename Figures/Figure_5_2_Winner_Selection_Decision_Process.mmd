@@ -1,0 +1,11 @@
+flowchart TD
+    A["Candidate runs hoàn tất"] --> B["Kiểm tra protocol/config"]
+    B --> C["Xếp hạng mean MAE"]
+    C --> D{"Khoảng cách đủ lớn?"}
+    D -->|Có| E["Chọn provisional winner"]
+    D -->|Không| F["Tie-break: Overall, aspect, RMSE"]
+    F --> G{"Vẫn tương đương?"}
+    G -->|Có| H["Ưu tiên mô hình nhỏ/ổn định"]
+    G -->|Không| E
+    E --> I["Carry forward sang phase sau"]
+    H --> I

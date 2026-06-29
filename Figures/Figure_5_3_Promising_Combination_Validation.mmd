@@ -1,0 +1,10 @@
+flowchart TB
+    A["Kết quả Phase 2–5"] --> B["Lấy top-2 mỗi component"]
+    B --> C["Tạo candidate có giả thuyết synergy"]
+    C --> D["Loại candidate trùng hoặc quá tốn"]
+    D --> E["Huấn luyện cùng frozen protocol"]
+    E --> F["Combination leaderboard"]
+    F --> G["Chọn top-2 theo mean + variance + cost"]
+    G --> H["Seeds 42, 123, 2026"]
+    H --> I["Chọn final bằng validation"]
+    I --> J["Locked test một lần"]

@@ -1,0 +1,19 @@
+flowchart LR
+    TT["Token features<br/>B × T × d_t"] --> TP["Linear d_t → 512"]
+    PP["Patch features<br/>B × P × d_v"] --> IP["Linear d_v → 512"]
+    TP --> T2I["MHA text→image<br/>Q=T, K=V=P"]
+    IP --> T2I
+    IP --> I2T["MHA image→text<br/>Q=P, K=V=T"]
+    TP --> I2T
+    T2I --> TM["Masked mean theo token<br/>B × 512"]
+    I2T --> IM["Masked mean theo patch<br/>B × 512"]
+    TM --> CAT["Nối đặc trưng<br/>B × 1024"]
+    IM --> CAT
+    CAT --> HEAD["MLP → 5 điểm"]
+
+    classDef tensor fill:#e8f1ff,stroke:#275dad,color:#111;
+    classDef attention fill:#f3e8ff,stroke:#805ad5,color:#111;
+    classDef output fill:#e7f7ec,stroke:#2f855a,color:#111;
+    class TT,PP,TP,IP tensor;
+    class T2I,I2T,TM,IM attention;
+    class CAT,HEAD output;

@@ -1,0 +1,18 @@
+flowchart LR
+    A["Review tiếng Việt<br/>+ nhiều ảnh"] --> B["Multimodal Model"]
+    B --> C["Năm điểm hồi quy"]
+    B --> D["XAI đa mức"]
+    C --> E["Đánh giá định lượng"]
+    D --> F["Bằng chứng không gian,<br/>token, modality"]
+    E --> G["AI Agent có grounding"]
+    F --> G
+    G --> H["Customer View<br/>+ Technical View"]
+
+    classDef data fill:#e8f1ff,stroke:#275dad,color:#111;
+    classDef model fill:#fff4d6,stroke:#b7791f,color:#111;
+    classDef xai fill:#f3e8ff,stroke:#805ad5,color:#111;
+    classDef output fill:#e7f7ec,stroke:#2f855a,color:#111;
+    class A data;
+    class B,C,E model;
+    class D,F xai;
+    class G,H output;
