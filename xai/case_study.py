@@ -143,7 +143,7 @@ def check_sample_artifacts(sample_id: str, xai_dir: str) -> Dict[str, Any]:
     ca_patterns = [
         'cross_attention_raw.npz', 'cross_attention_summary.json',
         'topk_token_patch_heatmap.png', 'token_patch_bipartite_graph.png',
-        'top_tokens_patch_overlay_grid.png',
+        'top_tokens_patch_overlay_grid.png', 'top_patches_token_rankings.png',
     ]
     ca_ok, ca_files = _check('cross_attention', ca_patterns)
     result['cross_attention'] = ca_ok
