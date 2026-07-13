@@ -1,187 +1,195 @@
-# FINAL PRESENTATION PROPOSAL
+# ĐỀ XUẤT BÀI TRÌNH BÀY CUỐI KỲ
 
 ## Explainable Multimodal Deep Learning for Vietnamese Restaurant Review Quality Assessment
 
-## Presentation overview
+## Tổng quan bài trình bày
 
-- **Recommended length:** 20 slides, approximately 16–18 minutes plus demo/Q&A.
-- **Narrative:** problem → five concrete contributions → controlled validation results → XAI/AI Agent demonstration → limitations → next steps.
-- **Central claim:** the project contributes more than a trained model: it delivers a traceable Vietnamese multimodal research pipeline spanning Foody data construction, evidence-backed label engineering, controlled ablations, architecture-aligned XAI, and grounded explanation generation.
-- **Primary experimental metric:** Mean MAE across five regression targets. All committed experiment values in this proposal are **validation** results.
-- **Presentation style:** Vietnamese-first, minimal text, large numerical callouts, one visual per slide, and consistent colors for Text, Image, Fusion, XAI, and Agent layers.
+- **Quy mô đề xuất:** 20 slide chính, 5 Backup Slide, thời lượng khoảng 16–18 phút chưa tính Q&A.
+- **Mạch kể chuyện:** Bài toán → năm đóng góp → kiến trúc hiện hành → kết quả Validation → XAI Demo → AI Agent Demo → giới hạn khoa học → lộ trình → kết luận.
+- **Thông điệp trung tâm:** Đề tài không chỉ tạo một Multimodal Model, mà xây dựng một Vietnamese Multimodal Research Pipeline có khả năng truy vết từ Dataset, Label Engineering, Controlled Experiments, XAI Evidence đến Human-readable Explanation.
+- **Metric chính:** Mean MAE trên năm Regression target; toàn bộ số liệu thực nghiệm đã commit trong `metrics/` là **Validation**, không phải Locked Test.
+- **Nguyên tắc thiết kế:** Một slide — một thông điệp — một Visual chính; số lớn, ít chữ, màu nhất quán cho Text, Image, Fusion, XAI và AI Agent.
 
-The main deck should be confident about what is implemented and measured. Keep two caveats concise: the repository does not contain a locked-test metric artifact, and the current token–patch Cross-Attention implementation was introduced after the historical fusion/loss runs. Detailed provenance belongs in speaker notes, not in the visual center of the deck.
+### Quy ước khoa học dùng chung
+
+- Các slide kết quả phải ghi rõ: **Validation Mean MAE — lower is better**.
+- Số liệu Cross-Attention và Loss hiện có thuộc kiến trúc lịch sử trước token–patch refactor; không gán các số này cho current implementation.
+- Demo dùng duy nhất `SAMPLE_INDEX = 0`, `SAMPLE_ID = sample_0000`, nội dung về **bánh canh cua**.
+- Chỉ đưa XAI Artifact và AI Agent report vào PowerPoint sau khi notebook đã chạy thật trên Colab; repository hiện chưa commit Runtime output.
 
 ---
 
-## Slide 1 — Explainable Multimodal Assessment of Vietnamese Restaurant Reviews
+## Slide 1 — Từ review nhà hàng đến Prediction có Evidence
 
-### Key message
+### Thông điệp chính
 
-From Vietnamese review text and restaurant images, the system predicts five quality scores and turns model evidence into a traceable explanation.
+Hệ thống biến một review tiếng Việt và tối đa bốn ảnh thành năm quality score, sau đó giải thích Prediction bằng Evidence có thể truy vết.
 
-### On-slide content
+### Nội dung trên slide
 
-- Input: one Vietnamese review + up to four images.
+- Input: một Vietnamese review + tối đa bốn ảnh.
 - Output: Food, Price, Atmosphere, Service, Overall Satisfaction.
-- Pipeline: Prediction → XAI Evidence → AI Agent Report.
+- Ba tầng tách biệt: Prediction → XAI Evidence → AI Agent report.
+- Nhóm 24 — SE365 — Final Presentation.
 
-### Visual
+### Visual chính
 
-A clean hero graphic showing a review and image set flowing into five score gauges, then an explanation card.
+Hero diagram: review và ảnh ở trái, năm score gauge ở giữa, explanation card ở phải; dùng ít chữ và một đường Pipeline duy nhất.
 
-### Data / assets
+### Dữ liệu / Artifact
 
 - `Figures/Figure_1_1_Research_Value_Chain.png`
 - `Figures/Figure_4_10_Prediction_XAI_AI_Agent_Sequence.png`
-- Project title, team name, course, instructor, and presentation date.
+- Tên nhóm, thành viên, môn học, giảng viên và ngày trình bày.
 
-### Speaker note
+### Gợi ý thuyết trình
 
-Open with the complete research value chain rather than a model name. Emphasize that prediction quality and explanation quality are separate responsibilities in the system.
-
----
-
-## Slide 2 — The Problem: Five Scores from Two Imperfect Modalities
-
-### Key message
-
-Restaurant quality is multi-aspect, while review text and images provide complementary but incomplete evidence.
-
-### On-slide content
-
-- Text expresses opinion, context, price, and service experience.
-- Images reveal food appearance, setting, and visual quality.
-- One sample maps to a five-dimensional score vector on a 0–10 scale.
-- The model must handle multiple images and modality disagreement.
-
-### Visual
-
-An input/output diagram with one review, three images, and five labeled regression outputs.
-
-### Data / assets
-
-- Target order from `src/dataset.py` and `xai/config.py`.
-- Example review and images should be captured from the runtime demo, not fabricated.
-
-### Speaker note
-
-Frame this as multi-target regression, not sentiment classification. The difficult part is combining evidence that may be strong for one target and irrelevant or conflicting for another.
+Mở đầu bằng toàn bộ research value chain, không bắt đầu từ tên Backbone. Nhấn mạnh Prediction, Evidence và diễn đạt ngôn ngữ là ba trách nhiệm khác nhau.
 
 ---
 
-## Slide 3 — Contribution I: A Vietnamese Multimodal Restaurant Dataset
+## Slide 2 — Bài toán: Multi-target Regression từ hai nguồn Evidence không hoàn hảo
 
-### Key message
+### Thông điệp chính
 
-The project converts noisy Foody data into a substantial, trainable Vietnamese multimodal dataset with an explicit cleaning trail.
+Text và Image bổ sung cho nhau, nhưng mỗi modality chỉ phản ánh một phần trải nghiệm nhà hàng và có thể xung đột.
 
-### On-slide content
+### Nội dung trên slide
 
-- Raw crawl: **300 restaurants, 11,111 reviews, 24,599 images**.
-- After cleaning: **9,946 valid reviews** and **22,150 valid review–image pairs**.
-- **6,082 reviews contain images** — **61.15%** image coverage.
-- Training preparation yields **6,080 grouped multimodal samples**.
+- Text thể hiện nhận xét, giá, dịch vụ và ngữ cảnh trải nghiệm.
+- Image thể hiện món ăn, không gian và chất lượng thị giác.
+- Output là vector năm score liên tục trên thang 0–10.
+- Một review có nhiều ảnh; loader sử dụng tối đa bốn ảnh.
 
-### Visual
+### Visual chính
 
-A four-stage data funnel: raw crawl → valid reviews → reviews with images → grouped training samples.
+Input–Output diagram dùng đúng `sample_0000`: review bánh canh cua + các ảnh thật → năm Prediction và Ground Truth.
 
-### Data / assets
+### Dữ liệu / Artifact
+
+- Target order từ `src/dataset.py` và `xai/config.py`.
+- `data/text/test.csv` tại Runtime, dòng `SAMPLE_INDEX = 0`.
+- Ảnh thật của `sample_0000` từ cache `data/image/` tại Runtime.
+
+### Gợi ý thuyết trình
+
+Định nghĩa đây là Multi-target Regression, không phải sentiment classification. Chỉ dùng nội dung và ảnh thật được notebook tải từ test row 0.
+
+---
+
+## Slide 3 — Đóng góp I: Từ Foody nhiễu đến Vietnamese Multimodal Dataset có thể huấn luyện
+
+### Thông điệp chính
+
+Đề tài chuyển dữ liệu web nhiều nhiễu thành Dataset tiếng Việt có cleaning trail, liên kết review–image và đơn vị huấn luyện ở mức review.
+
+### Nội dung trên slide
+
+- Raw crawl: **300 nhà hàng, 11.111 review, 24.599 ảnh**.
+- Sau Data Cleaning: **9.946 valid review, 22.150 cleaned image record**.
+- **6.082 review có ảnh**, tương đương **61,15%** coverage.
+- Current preprocessing: **22.150 → 22.146 record → 6.080 review-level sample**.
+- Gói dữ liệu dùng cho các experiment đã ghi nhận: **4.800 / 600 / 600**.
+
+### Visual chính
+
+Data funnel hai tầng: tầng trên thể hiện raw → cleaned; tầng dưới thể hiện image record → review-level grouping → experiment split.
+
+### Dữ liệu / Artifact
 
 - `data_raw/cleaning_report.json`
 - `data_raw/multimodal_reviews.csv`
 - `data_processed/reviews_clean_enhanced.csv`
 - `preprocess_data.py`
-- `Figures/Figure_3_1_Dataset_Pipeline.png`
+- `doc/changelog.md`
+- Output huấn luyện trong các notebook `EXP_*` với 150 batch × 32 hoặc 300 batch × 16.
 
-### Speaker note
+### Gợi ý thuyết trình
 
-The contribution is not just volume; it is the conversion from web data into review-level multimodal units. Current preprocessing retains 22,146 image records after required-field filtering and groups them into 6,080 samples.
+22.150 là cleaned image record; 22.146 là số còn lại sau required-field filtering; 6.080 là số nhóm review đầy đủ theo current preprocessing. Các metrics đã commit được tạo trên gói experiment 6.000 mẫu; CSV snapshot và hash của split này chưa được commit.
 
 ---
 
-## Slide 4 — Contribution II: Traceable Satisfaction Label Engineering
+## Slide 4 — Đóng góp II: Từ bốn Aspect Rating đến Overall Satisfaction có Evidence
 
-### Key message
+### Thông điệp chính
 
-Overall Satisfaction is engineered as an auditable weak label: four aspect scores plus explicit Vietnamese satisfaction evidence.
+Overall Satisfaction là Weak Label có khả năng truy vết, kết hợp bốn Aspect Rating với tín hiệu hài lòng tiếng Việt thay vì dùng một trung bình bất biến.
 
-### On-slide content
+### Nội dung trên slide
 
-- Base score: mean of Food, Service, Atmosphere, and Price.
-- **14 rule categories:** 8 positive and 6 negative.
-- **3,263 / 9,946 reviews (32.81%)** receive a non-zero adjustment.
-- Every adjustment stores the matched rule and text evidence.
-- Final value is clipped to the **0–10** score range.
+- Base score: trung bình Food, Service, Atmosphere và Price.
+- **14 rule category:** 8 positive, 6 negative.
+- **3.263 / 9.946 review (32,81%)** có adjustment khác 0.
+- Mỗi adjustment lưu rule, polarity, score và matched Evidence.
+- Final label được clip trên thang **0–10**.
 
-### Visual
+### Visual chính
 
-A formula card: four-aspect mean + traceable text adjustment → Overall Satisfaction, with one positive and one negative evidence example.
+Một formula card: bốn Aspect Rating + Vietnamese satisfaction signal → Overall Satisfaction; kèm một Evidence dương và một Evidence âm thật từ rule analysis.
 
-### Data / assets
+### Dữ liệu / Artifact
 
-- `data_processed/overall_satisfaction_rule_analysis.md`
 - `data_processed/overall_satisfaction_rules.json`
+- `data_processed/overall_satisfaction_rule_analysis.md`
 - `data_processed/reviews_clean_enhanced.csv`
 
-### Speaker note
+### Gợi ý thuyết trình
 
-This label is more defensible than an opaque synthetic score because each adjustment can be traced back to a named rule and matched phrase. Excluding Position changes at least 0.5 points for 1,044 reviews, supporting a construct focused on the depicted and described dining experience.
+Giá trị nghiên cứu nằm ở provenance: mọi thay đổi label đều có thể lần ngược về rule và câu chữ kích hoạt. Việc loại Position khỏi base score làm ít nhất 0,5 điểm thay đổi ở 1.044 review, giúp target gần hơn với trải nghiệm được mô tả và quan sát.
 
 ---
 
-## Slide 5 — Contribution III: A Controlled Experiment Framework
+## Slide 5 — Đóng góp III: Từ training run rời rạc đến Controlled Experimental Evidence
 
-### Key message
+### Thông điệp chính
 
-The project turns model selection into a controlled evidence chain rather than a collection of unrelated training runs.
+Đề tài tổ chức model selection thành chuỗi Controlled Sequential Ablation, cho phép quy kết tác động của từng quyết định kiến trúc.
 
-### On-slide content
+### Nội dung trên slide
 
-- **20 committed validation metric artifacts** with one five-target schema.
-- Five comparison stages: modality, image backbone, text backbone, fusion, and loss.
-- Five additional Phase 6 combination checks test whether winners compose.
-- Deterministic 80/10/10 split logic with seed 42.
-- Selection criterion: Mean MAE across all five targets.
+- **20 Validation metric artifact** theo cùng schema năm target.
+- Năm câu hỏi: modality, Image Backbone, Text Encoder, Fusion, Loss.
+- Mỗi phase giữ winner trước đó và chỉ thay một thành phần chính.
+- Mean MAE là criterion chọn model; MAE, RMSE và R² theo từng target.
+- Các tổ hợp mở rộng được kiểm tra riêng và chuyển xuống Backup.
 
-### Visual
+### Visual chính
 
-A sequential ablation ladder with one variable changing at each stage, ending in Phase 6 combination validation.
+Controlled Sequential Ablation ladder: Baseline → Image → Text → Fusion → Loss, mỗi bậc chỉ tô sáng biến được thay đổi.
 
-### Data / assets
+### Dữ liệu / Artifact
 
 - `metrics/*.json`
 - `Trainer.py`
-- `preprocess_data.py`
+- `notebook/EXP_010_text_only_xlmr_mse.ipynb` đến các notebook Phase 5.
 - `Figures/Figure_5_1_Controlled_Sequential_Ablation_Phases.png`
-- `Figures/Figure_5_3_Promising_Combination_Validation.png`
 
-### Speaker note
+### Gợi ý thuyết trình
 
-The current split-generation logic produces 4,864 train, 608 validation, and 608 test samples from 6,080 grouped reviews. The committed JSON files report validation metrics; the deck must not relabel them as test results.
+Điểm mạnh không chỉ là số lượng experiment, mà là khả năng trả lời từng research question bằng một comparison có kiểm soát. Các tổ hợp mở rộng được chuyển xuống Backup để mạch chính tập trung vào các quyết định có khả năng diễn giải rõ nhất.
 
 ---
 
-## Slide 6 — Contribution IV: Architecture-Aligned Multi-Level XAI
+## Slide 6 — Đóng góp IV: Mở “hộp đen” Multimodal Model ở nhiều tầng
 
-### Key message
+### Thông điệp chính
 
-Five complementary XAI methods inspect the model at image, text, interaction, fused, and local-perturbation levels.
+Năm XAI method được gắn vào đúng tầng biểu diễn để trả lời năm câu hỏi khác nhau về Prediction.
 
-### On-slide content
+### Nội dung trên slide
 
-- Grad-CAM: image regions linked to Overall Satisfaction.
-- Word-level Attention: readable Vietnamese evidence, not raw subwords.
-- Cross-Attention: both Token → Patch and Patch → Token interactions.
-- SHAP: text-origin vs image-origin contribution after fusion.
-- LIME: local sensitivity for the selected sample only.
+- Grad-CAM: model tập trung vào vùng ảnh nào?
+- PhoBERT Attention: từ nào được chú ý trong review?
+- Cross-Attention: Token ↔ Patch tương tác ra sao?
+- SHAP: Text-origin hay Image-origin đóng góp nhiều hơn sau Fusion?
+- LIME: Prediction nhạy thế nào với perturbation cục bộ?
 
-### Visual
+### Visual chính
 
-A five-layer XAI map aligned to the tensors each method explains.
+Architecture-aligned XAI map: mỗi method nối đúng vào Image Encoder, Text Encoder, Fusion representation hoặc prediction function.
 
-### Data / assets
+### Dữ liệu / Artifact
 
 - `xai/gradcam_explainer.py`
 - `xai/attention_explainer.py`
@@ -189,31 +197,31 @@ A five-layer XAI map aligned to the tensors each method explains.
 - `xai/lime_explainer.py`
 - `Figures/Figure_4_5_Multi_Level_XAI_Pipeline.png`
 
-### Speaker note
+### Gợi ý thuyết trình
 
-No single method answers every question. The value is triangulation: region evidence, word evidence, cross-modal interaction, fused attribution, and local perturbation can support or contradict one another.
+Không có một XAI method duy nhất giải thích được toàn hệ thống. Giá trị của Pipeline là triangulation: các Evidence có thể hỗ trợ, bổ sung hoặc mâu thuẫn với nhau.
 
 ---
 
-## Slide 7 — Contribution V: An Evidence-Grounded AI Agent
+## Slide 7 — Đóng góp V: Từ XAI Artifact kỹ thuật đến Explanation có thể kiểm tra
 
-### Key message
+### Thông điệp chính
 
-The AI Agent is a controlled verbalization layer that organizes existing evidence; it never predicts or edits the five scores.
+Evidence-grounded AI Agent chuyển XAI Artifact thành hai lớp báo cáo dễ sử dụng mà không tạo hoặc chỉnh sửa Prediction.
 
-### On-slide content
+### Nội dung trên slide
 
-- Loads available XAI artifacts and records missing evidence.
-- Builds a reasoning graph before the language-model call.
-- Compresses raw explanations into target-specific Top-K evidence.
-- Validates schema, target coverage, grounding, and limitations.
-- Produces Customer View and Technical View reports.
+- Evidence Loader nạp Artifact và ghi nhận phần còn thiếu.
+- Reasoning Graph tổ chức support, conflict và missing Evidence.
+- Evidence Builder nén raw output thành Top-K theo target.
+- Validator kiểm tra schema, grounding, target coverage và warning.
+- Report Generator tạo Customer View và Technical View.
 
-### Visual
+### Visual chính
 
-A left-to-right Agent pipeline: Evidence Loader → Reasoning Graph → GPT-4o → Validator → two report views.
+Pipeline: fixed Prediction + XAI Evidence → Reasoning Graph → GPT-4o → Validator → Customer View / Technical View.
 
-### Data / assets
+### Dữ liệu / Artifact
 
 - `agent/evidence_loader.py`, `agent/evidence_builder.py`
 - `agent/reasoning.py`, `agent/prompt_builder.py`
@@ -221,150 +229,152 @@ A left-to-right Agent pipeline: Evidence Loader → Reasoning Graph → GPT-4o �
 - `agent/report_generator.py`
 - `Figures/Figure_4_7_Evidence_Based_AI_Agent_Pipeline.png`
 
-### Speaker note
+### Gợi ý thuyết trình
 
-The design limits free-form generation by placing structured reasoning and evidence selection before GPT-4o and validation after it. At runtime the Agent runs only when `OPENAI_API_KEY` is available; otherwise the XAI demo continues cleanly.
+AI Agent nằm sau Prediction và XAI, nên không có quyền thay đổi năm score. GPT-4o chỉ chạy khi có `OPENAI_API_KEY`; thiếu key thì notebook skip phần Agent nhưng không làm hỏng XAI Pipeline.
 
 ---
 
-## Slide 8 — Current Multimodal Architecture: PhoBERT ↔ Swin-B
+## Slide 8 — Kiến trúc Multimodal hiện hành: Bidirectional Cross-Attention token–patch
 
-### Key message
+### Thông điệp chính
 
-The current implementation performs real bidirectional Cross-Attention between Vietnamese text tokens and visual patch features.
+Current implementation thực hiện Cross-Attention hai chiều thực sự ở mức Token → Patch và Patch → Token, thay cho tương tác pooled-vector 1×1 trước đây.
 
-### On-slide content
+### Nội dung trên slide
 
-- PhoBERT encodes contextual token representations.
-- Swin-B encodes patch-level visual representations across real images.
-- Two 8-head attention blocks model Token → Patch and Patch → Token.
-- Masked pooling forms a 1,024-dimensional fused representation.
-- A shared MLP predicts five continuous scores.
+- PhoBERT tạo contextual token sequence.
+- Swin-B tạo spatial patch sequence, aggregate qua các ảnh thật.
+- Hai khối 8-head Cross-Attention với hidden dimension 512.
+- Masked mean pooling → fused representation 1.024 chiều.
+- Shared MLP → năm Regression score.
 
-### Visual
+### Visual chính
 
-The token–patch Cross-Attention diagram with both directions clearly labeled.
+Sơ đồ đối xứng: token sequence ở trái, patch grid ở phải, hai mũi tên Token → Patch và Patch → Token ở trung tâm.
 
-### Data / assets
+### Dữ liệu / Artifact
 
 - `Models/TextModel.py`
 - `Models/ImageModel.py`
 - `Models/CrossAttentionFusion.py`
 - `Figures/Figure_4_2_Cross_Attention.png`
 
-### Speaker note
+### Gợi ý thuyết trình
 
-This is the current architecture in code. Keep it separate from the historical fusion/loss validation claims because those metrics were produced before the token–patch refactor.
+Đây là kiến trúc hiện hành trong source code và là attachment point cho improved Cross-Attention visualization. Phần kết quả tiếp theo vẫn phải được đọc theo provenance của từng metric artifact.
 
 ---
 
-## Slide 9 — Result I: Text Carries Most of the Signal; Images Add a Small Gain
+## Slide 9 — Kết quả I: Multimodal có tốt hơn single modality?
 
-### Key message
+### Thông điệp chính
 
-The multimodal baseline is best, but its gain over text-only is modest: Vietnamese review text remains the dominant predictive source.
+Multimodal Baseline tốt nhất, nhưng text vẫn là nguồn tín hiệu chính và ảnh chỉ tạo thêm một cải thiện aggregate nhỏ.
 
-### On-slide content
+### Nội dung trên slide
 
-- Image-only ConvNeXt: **1.4949 Mean MAE**.
-- Text-only XLM-R: **1.2434**.
-- Multimodal ConvNeXt + XLM-R: **1.2385**.
-- Multimodal improves **0.4%** over text-only and **17.2%** over image-only.
+- Text-only XLM-R: **1,2434 Mean MAE**.
+- Image-only ConvNeXt: **1,4949**.
+- Multimodal ConvNeXt + XLM-R: **1,2385**.
+- Multimodal giảm **0,40%** so với Text-only.
+- Multimodal giảm **17,15%** so với Image-only.
 
-### Visual
+### Visual chính
 
-A three-bar validation Mean MAE chart, lower is better, with the multimodal bar highlighted.
+Bar chart ba cột, sắp xếp từ thấp đến cao; highlight Multimodal và ghi rõ **Validation Mean MAE — lower is better**.
 
-### Data / assets
+### Dữ liệu / Artifact
 
 - `metrics/metrics_EXP_010_text_only_xlmr_mse.json`
 - `metrics/metrics_EXP_011_image_only_convnext_meanpool_mse.json`
 - `metrics/metrics_EXP_012_multimodal_convnext_xlmr_concat_mse.json`
 
-### Speaker note
+### Gợi ý thuyết trình
 
-This comparison is now supported by committed metric files. The honest interpretation is useful: images contribute complementary signal, but the aggregate improvement over a strong text baseline is small.
+Đây là câu trả lời thực nghiệm trực tiếp cho giá trị của Multimodal input. Kết luận cần cân bằng: Image có Evidence bổ sung, nhưng aggregate gain trên Text-only chỉ 0,40%.
 
 ---
 
-## Slide 10 — Result II: Swin-B Is the Strongest Image Backbone
+## Slide 10 — Kết quả II: Swin-B là Image Backbone tốt nhất trong comparison
 
-### Key message
+### Thông điệp chính
 
-Under the same XLM-R + Concatenation + MSE setting, Swin-B gives the lowest validation error among the tested image encoders.
+Khi giữ XLM-R, Concatenation và MSE cố định, Swin-B cho Validation Mean MAE thấp nhất trong ba Image Backbone.
 
-### On-slide content
+### Nội dung trên slide
 
-- **Swin-B: 1.2169 Mean MAE**.
-- SigLIP: 1.2296.
-- EfficientNet-B3: 1.2800.
-- Swin-B improves **1.0%** over SigLIP and **4.9%** over EfficientNet-B3.
+- **Swin-B: 1,2169 Mean MAE**.
+- SigLIP: 1,2296.
+- EfficientNet-B3: 1,2800.
+- Swin-B tốt hơn SigLIP **1,04%**.
+- Swin-B tốt hơn EfficientNet-B3 **4,93%**.
 
-### Visual
+### Visual chính
 
-A ranked horizontal bar chart with Swin-B in the project accent color.
+Ranked horizontal bar chart; Swin-B dùng accent color, hai Backbone còn lại dùng màu trung tính; ghi **Validation Mean MAE — lower is better**.
 
-### Data / assets
+### Dữ liệu / Artifact
 
 - `metrics/metrics_EXP_020B_swinb_xlmr_concat_mse.json`
 - `metrics/metrics_EXP_020E_siglip_xlmr_concat_mse.json`
 - `metrics/metrics_EXP_020D_efficientnetb3_xlmr_concat_mse.json`
 
-### Speaker note
+### Gợi ý thuyết trình
 
-Only the image backbone changes in this phase. Use Mean MAE as the comparison criterion and avoid cluttering the slide with all per-target values.
+Chỉ Image Backbone thay đổi trong comparison này. Không đưa toàn bộ target-wise table lên slide; giữ phần đó cho Backup hoặc Q&A.
 
 ---
 
-## Slide 11 — Result III: PhoBERT Produces the Largest Sequential Gain
+## Slide 11 — Kết quả III: PhoBERT tạo bước cải thiện lớn nhất
 
-### Key message
+### Thông điệp chính
 
-Choosing a Vietnamese-specific text backbone has a much larger effect than later fusion or loss refinements.
+Text Encoder phù hợp tiếng Việt mang lại tác động lớn hơn rõ rệt so với các tinh chỉnh Fusion và Loss phía sau.
 
-### On-slide content
+### Nội dung trên slide
 
-- **PhoBERT: 1.1145 Mean MAE**.
-- XLM-R: 1.2169.
-- ViSoBERT: 1.2328.
-- PhoBERT reduces error by **8.4%** versus XLM-R.
-- This is the strongest improvement in the sequential ablation chain.
+- **PhoBERT: 1,1145 Mean MAE**.
+- XLM-R: 1,2169.
+- ViSoBERT: 1,2328.
+- PhoBERT giảm **8,41%** so với XLM-R.
+- PhoBERT giảm **9,59%** so với ViSoBERT.
 
-### Visual
+### Visual chính
 
-A three-point lollipop chart with a large “−8.4%” callout between XLM-R and PhoBERT.
+Lollipop chart ba Text Encoder với callout lớn “−8,41%”; ghi **Validation Mean MAE — lower is better**.
 
-### Data / assets
+### Dữ liệu / Artifact
 
 - `metrics/metrics_EXP_030B_bestimage_phobert_concat_mse.json`
 - `metrics/metrics_EXP_020B_swinb_xlmr_concat_mse.json`
 - `metrics/metrics_EXP_030D_bestimage_visobert_concat_mse.json`
 
-### Speaker note
+### Gợi ý thuyết trình
 
-This is the clearest experimental result in the deck. It supports the project’s focus on Vietnamese language representation while remaining a within-protocol validation comparison.
+Đây là kết quả mạnh nhất trong Controlled Sequential Ablation. Nó cho thấy domain-language alignment quan trọng hơn việc chỉ tăng độ phức tạp của Fusion.
 
 ---
 
-## Slide 12 — Result IV: Fusion Helps, but the Top Methods Are Nearly Tied
+## Slide 12 — Kết quả IV: Fusion cải thiện nhẹ, top methods gần như hòa
 
-### Key message
+### Thông điệp chính
 
-Cross-Attention records the lowest historical Mean MAE, yet its numerical advantage over Gated Cross-Modal fusion is only 0.03%.
+Historical Cross-Attention đạt Mean MAE thấp nhất, nhưng khoảng cách với Gated Cross-Modal chỉ 0,03%.
 
-### On-slide content
+### Nội dung trên slide
 
-- **Cross-Attention: 1.1079 Mean MAE**.
-- Gated Cross-Modal: 1.1082; Concatenation: 1.1145.
-- GMU: 1.1160; FiLM: 1.1195.
-- Cross-Attention improves **0.6%** over Concatenation.
-- Prefer it for interaction modeling and XAI value, not a large accuracy claim.
+- **Cross-Attention: 1,1079 Mean MAE**.
+- Gated Cross-Modal: 1,1082; Concatenation: 1,1145.
+- GMU: 1,1160; FiLM: 1,1195.
+- Cross-Attention tốt hơn Concatenation **0,60%**.
+- Giá trị chính của Cross-Attention là interaction modeling và XAI.
 
-### Visual
+### Visual chính
 
-A zoomed ranked dot plot of the five validation Mean MAE values with the top-two gap annotated.
+Zoomed dot plot cho năm Fusion strategy, highlight khoảng cách rất nhỏ giữa hai vị trí đầu; ghi **Validation Mean MAE — lower is better**.
 
-### Data / assets
+### Dữ liệu / Artifact
 
 - `metrics/metrics_EXP_030B_bestimage_phobert_concat_mse.json`
 - `metrics/metrics_EXP_040B_bestimage_besttext_gmu_mse.json`
@@ -372,61 +382,323 @@ A zoomed ranked dot plot of the five validation Mean MAE values with the top-two
 - `metrics/metrics_EXP_041A_bestimage_besttext_film_mse.json`
 - `metrics/metrics_EXP_041B_bestimage_besttext_crossattention_mse.json`
 
-### Speaker note
+### Gợi ý thuyết trình
 
-These fusion metrics use the historical pre-refactor Cross-Attention semantics. The current token–patch architecture requires a fresh controlled rerun before the same value can be attributed to it.
+**Metric lịch sử được đo trước token–patch refactor; current implementation cần controlled rerun.** Không diễn giải chênh lệch 0,03% như một improvement có statistical significance.
 
 ---
 
-## Slide 13 — Result V: Loss Choice Does Not Materially Change Mean MAE
+## Slide 13 — Kết quả V: Loss không làm thay đổi đáng kể Mean MAE
 
-### Key message
+### Thông điệp chính
 
-All four loss strategies converge to almost the same aggregate validation error; there is no honest large winner.
+MSE, Log-Cosh, Uncertainty Weighting và Huber cho aggregate performance gần như tương đương.
 
-### On-slide content
+### Nội dung trên slide
 
-- **MSE: 1.1079 Mean MAE** — best aggregate value.
-- Log-Cosh: 1.1080 — best Overall MAE at **0.9130**.
-- Uncertainty weighting: 1.1080 — best Overall R² at **0.6337**.
-- Huber: 1.1085.
-- Maximum Mean MAE spread: **0.0007**.
+- **MSE: 1,1079 Mean MAE** — thấp nhất theo aggregate criterion.
+- Log-Cosh: 1,1080 — **Overall MAE 0,9130**.
+- Uncertainty Weighting: 1,1080 — **Overall R² 0,6337**.
+- Huber: 1,1085.
+- Toàn bộ Mean MAE chỉ chênh **0,0007**.
 
-### Visual
+### Visual chính
 
-A compact heatmap table with rows for losses and columns for Mean MAE, Overall MAE, and Overall R².
+Compact heatmap table với ba cột Mean MAE, Overall MAE, Overall R²; ghi **Validation — lower is better cho MAE, higher is better cho R²**.
 
-### Data / assets
+### Dữ liệu / Artifact
 
 - `metrics/metrics_EXP_041B_bestimage_besttext_crossattention_mse.json`
 - `metrics/metrics_EXP_050B_bestfusion_huber.json`
 - `metrics/metrics_EXP_050C_bestfusion_logcosh.json`
 - `metrics/metrics_EXP_051D_bestfusion_uncertaintyweighted.json`
 
-### Speaker note
+### Gợi ý thuyết trình
 
-Do not compare raw loss values across different objectives. The measured conclusion is that evaluation metrics are effectively tied; multi-seed analysis would be needed to establish a reliable ordering.
+Không so sánh raw Loss value giữa các objective khác nhau. Kết luận trung thực là không có large winner; Multi-seed mới cho biết ordering có ổn định hay không.
 
 ---
 
-## Slide 14 — Result VI: Good Components Do Not Automatically Form a Better Combination
+## Slide 14 — Cấu hình tốt nhất theo Validation khác Demo reference checkpoint
 
-### Key message
+### Thông điệp chính
 
-Phase 6 confirms that the controlled sequential winner remains stronger than alternative mixtures of individually promising components.
+“Tốt nhất” phụ thuộc criterion: EXP_041B thắng Mean MAE, còn demo dùng EXP_060A/EXP_050C Log-Cosh làm reference checkpoint.
 
-### On-slide content
+### Nội dung trên slide
 
-- **EXP_060A sequential configuration: 1.1080 Mean MAE**.
-- EXP_060E: 1.1248; EXP_060C: 1.1256.
-- EXP_060B: 1.2300; EXP_060D: 1.2829.
-- Component interactions matter; “best + best” is not automatically best.
+- **Best aggregate Validation:** EXP_041B + MSE, Mean MAE **1,1079**.
+- Target-wise MAE: Food 1,1024; Price 1,1728; Atmosphere 1,1743; Service 1,1756; Overall 0,9143.
+- **Demo/reference:** EXP_060A sao chép checkpoint EXP_050C + Log-Cosh.
+- Demo metric: Mean MAE **1,1080**; Overall MAE **0,9130**.
+- `BEST_EXP_ID` và notebook cố định Runtime vào EXP_060A.
 
-### Visual
+### Visual chính
 
-A ranked five-bar chart for the Phase 6 configurations, with EXP_060A highlighted.
+Một comparison dashboard: bên trái per-target bar chart của EXP_041B; bên phải card “Demo checkpoint lineage” EXP_050C → EXP_060A → `sample_0000`.
 
-### Data / assets
+### Dữ liệu / Artifact
+
+- `metrics/metrics_EXP_041B_bestimage_besttext_crossattention_mse.json`
+- `metrics/metrics_EXP_050C_bestfusion_logcosh.json`
+- `metrics/metrics_EXP_060A_bestsequential_full_configuration.json`
+- `notebook/EXP_060A_bestsequential_full_configuration.ipynb`
+- `xai/config.py`
+- `Success_End_to_End_XAI_AI_Agent_Sample_0000_Improved_CrossAttention.ipynb`
+
+### Gợi ý thuyết trình
+
+EXP_060A copy toàn bộ training artifact từ EXP_050C và được chọn làm reference cho XAI Pipeline; nó không phải winner theo Mean MAE. Checkpoint này được huấn luyện với historical Cross-Attention, dù Runtime hiện dựng current token–patch class để tạo visualization.
+
+---
+
+## Slide 15 — XAI Demo I: Model nhìn đâu và chú ý từ nào trong review bánh canh cua?
+
+### Thông điệp chính
+
+Trên cùng `sample_0000`, Grad-CAM và PhoBERT Attention cho hai góc nhìn bổ sung về vùng ảnh và từ ngữ được model sử dụng.
+
+### Nội dung trên slide
+
+- Cố định `SAMPLE_INDEX = 0`, `SAMPLE_ID = sample_0000`.
+- Hiển thị review, ảnh thật và Prediction vs Ground Truth.
+- Grad-CAM chỉ cho target **Overall Satisfaction**.
+- PhoBERT Attention hiển thị word-level đã merge subword.
+
+### Visual chính
+
+Một dashboard ba vùng: Input + Prediction ở trái; Overall Grad-CAM overlay ở giữa; Top word-level PhoBERT Attention bar ở phải.
+
+### Dữ liệu / Artifact
+
+- Notebook: `Success_End_to_End_XAI_AI_Agent_Sample_0000_Improved_CrossAttention.ipynb`
+- `/content/drive/MyDrive/SE365/demo_e2e/sample_0000/sample_0000_prediction.png`
+- `/content/drive/MyDrive/SE365/demo_e2e/sample_0000/sample_0000_gradcam_3panel.png`
+- `/content/drive/MyDrive/SE365/experiments/EXP_060A_bestsequential_full_configuration/xai/attention/sample_0000/cls_importance_word_bar.png`
+- **Trạng thái:** Runtime required; các file trên chưa được commit trong repository.
+
+### Gợi ý thuyết trình
+
+Chỉ mô tả các vùng và từ thật xuất hiện sau khi notebook chạy thành công. Không dùng raw subword, không dùng Grad-CAM comparison năm target và không suy diễn vùng nóng thành nguyên nhân.
+
+---
+
+## Slide 16 — XAI Demo II: Token ↔ Patch interaction, SHAP và LIME trên cùng một sample
+
+### Thông điệp chính
+
+Improved Cross-Attention visualization làm rõ cả Text → Image và Image → Text, trong khi SHAP và LIME bổ sung góc nhìn contribution và local sensitivity.
+
+### Nội dung trên slide
+
+- **Text → Image:** important review word liên hệ với vùng ảnh nào?
+- **Image → Text:** selected visual patch liên hệ mạnh với từ nào?
+- SHAP: tỷ lệ Text-origin / Image-origin sau Cross-Attention.
+- LIME: Local Explanation cho đúng `sample_0000`.
+
+### Visual chính
+
+Hai hình Cross-Attention chiếm khoảng 70% slide: `top_tokens_patch_overlay_grid.png` và `top_patches_token_rankings.png`; SHAP và LIME chỉ là hai summary card nhỏ ở hàng dưới.
+
+### Dữ liệu / Artifact
+
+- `/content/drive/MyDrive/SE365/experiments/EXP_060A_bestsequential_full_configuration/xai/cross_attention/sample_0000/top_tokens_patch_overlay_grid.png`
+- `/content/drive/MyDrive/SE365/experiments/EXP_060A_bestsequential_full_configuration/xai/cross_attention/sample_0000/top_patches_token_rankings.png`
+- `/content/drive/MyDrive/SE365/demo_e2e/sample_0000/sample_0000_shap_analysis.png`
+- `/content/drive/MyDrive/SE365/demo_e2e/sample_0000/sample_0000_lime_4panel.png`
+- **Trạng thái:** Runtime required; không dùng raw matrix hoặc bipartite graph cũ làm Visual chính.
+
+### Gợi ý thuyết trình
+
+Cross-Attention thể hiện internal association, không phải causal proof. Text-origin và Image-origin là hai nửa cross-attended representation sau Fusion, không phải hai modality thuần; LIME chỉ giải thích cục bộ sample này.
+
+---
+
+## Slide 17 — AI Agent Demo: Từ fixed Prediction và XAI Evidence đến hai lớp báo cáo
+
+### Thông điệp chính
+
+AI Agent verbalize Evidence của `sample_0000`, đồng thời giữ nguyên Prediction và công khai warning hoặc Evidence còn thiếu.
+
+### Nội dung trên slide
+
+- Input cố định: năm Prediction + XAI Evidence package của `sample_0000`.
+- Reasoning Graph phân loại support, conflict và missing Evidence.
+- Customer View: ngắn, dễ đọc; Technical View: đầy đủ provenance.
+- Validator hiển thị target coverage, grounding và warning.
+- Output vẫn cần grounding validation và Human Review.
+
+### Visual chính
+
+Split-screen report thật: Customer View bên trái; Technical View, Evidence completeness và validation warning bên phải; một dải nhỏ phía trên ghi “Prediction unchanged”.
+
+### Dữ liệu / Artifact
+
+- `/content/drive/MyDrive/SE365/demo_e2e/agent_reports/sample_0000/sample_0000_report_vi.md`
+- `/content/drive/MyDrive/SE365/demo_e2e/agent_reports/sample_0000/sample_0000_report.json`
+- `agent/reasoning.py`, `agent/validator.py`, `agent/report_generator.py`
+- **Trạng thái:** Runtime/API key required; repository chưa có report thật để chụp.
+
+### Gợi ý thuyết trình
+
+AI Agent không generate Prediction, không sửa năm score và không bịa Evidence còn thiếu. Nếu `OPENAI_API_KEY` không tồn tại, notebook skip Agent an toàn; chỉ dùng screenshot sau khi report thật đã được tạo và kiểm tra.
+
+---
+
+## Slide 18 — Giới hạn khoa học của kết quả hiện tại (Limitations)
+
+### Thông điệp chính
+
+Các giới hạn được xác định rõ để khoanh vùng điều dự án đã chứng minh và điều còn cần Evidence mạnh hơn.
+
+### Nội dung trên slide
+
+- Một platform/domain; review và ảnh không phải lúc nào cũng đồng nhất.
+- Weak Label có provenance nhưng vẫn chịu lỗi phrase, negation và discourse.
+- Chưa có Multi-seed, Locked Test package và controlled rerun cho token–patch.
+- Attention không chứng minh causality; SHAP và LIME là approximation.
+- AI Agent vẫn cần grounding validation và Human Review.
+
+### Visual chính
+
+Limitation–impact matrix gồm năm hàng: nguồn giới hạn, tác động có thể có và phạm vi kết luận được phép.
+
+### Dữ liệu / Artifact
+
+- `data_processed/overall_satisfaction_rule_analysis.md`
+- `notebook/EXP_050C_truecrossattn_logcosh.ipynb` — chưa chạy, không có output.
+- Git history của `Models/CrossAttentionFusion.py`.
+- Metadata của notebook demo: 0 executed cell, 0 output block.
+
+### Gợi ý thuyết trình
+
+Trình bày đây là scientific boundary, không phải danh sách lỗi. Hệ thống đã hoàn thiện về thiết kế; phần còn thiếu chủ yếu là mức độ xác nhận thực nghiệm và Human Evaluation.
+
+---
+
+## Slide 19 — Lộ trình tiếp theo theo ba mức ưu tiên (Future Work)
+
+### Thông điệp chính
+
+Lộ trình tiếp theo ưu tiên củng cố Evidence trước, đánh giá trustworthiness sau, rồi mới mở rộng hệ thống.
+
+### Nội dung trên slide
+
+- **P0 — Experimental Evidence:** version split; rerun token–patch; Multi-seed; Locked Test; lưu prediction, config và hash.
+- **P1 — Trustworthiness:** human audit Weak Label; Human Evaluation XAI/Agent; stability, faithfulness, uncertainty và conflict detection.
+- **P2 — Expansion:** thêm thành phố/platform; vision–language pretraining; target-conditioned Cross-Attention; tối ưu inference.
+- Đích đến: web demo có Evidence traceability từ report về Artifact và Checkpoint.
+
+### Visual chính
+
+Three-horizon roadmap P0 → P1 → P2, mỗi horizon có một deliverable đo được và một completion gate.
+
+### Dữ liệu / Artifact
+
+- `Figures/Figure_7_1_Proposed_Deployment_Architecture.png`
+- `Trainer.py`, `test.py`
+- Artifact cần tạo: split manifest, `test_metrics.json`, prediction CSV, Checkpoint/config hash, Human Evaluation form.
+
+### Gợi ý thuyết trình
+
+P0 là điều kiện trước khi đưa ra final generalization claim. P1 kiểm tra explanation có hữu ích và faithful hay không; P2 chỉ bắt đầu khi Evidence contract đã ổn định.
+
+---
+
+## Slide 20 — Thông điệp kết luận: Một Research Pipeline có khả năng truy vết
+
+### Thông điệp chính
+
+Đề tài kết nối Dataset, Controlled Experiments, Multi-level XAI và Evidence-grounded AI Agent thành một hệ thống nghiên cứu thống nhất.
+
+### Nội dung trên slide
+
+- **Dataset:** 9.946 valid review, 22.150 cleaned image record.
+- **Model & Experiments:** 20 Validation artifact; best recorded Mean MAE **1,1079**.
+- **Multi-level XAI:** năm method từ image region đến local perturbation.
+- **AI Agent:** Reasoning Graph + Customer View + Technical View có validation warning.
+
+### Visual chính
+
+Bốn pillar — Dataset, Model & Experiments, Multi-level XAI, Evidence-grounded AI Agent — hội tụ vào một trục “Traceable Vietnamese Multimodal Research Pipeline”.
+
+### Dữ liệu / Artifact
+
+- `data_raw/cleaning_report.json`
+- `data_processed/overall_satisfaction_rule_analysis.md`
+- `metrics/*.json`
+- `Figures/Figure_1_1_Research_Value_Chain.png`
+
+### Gợi ý thuyết trình
+
+Kết thúc bằng system-level contribution, không bằng chênh lệch metric rất nhỏ. Câu chốt: **“Prediction có giá trị hơn khi đường đi từ dữ liệu, model, Evidence đến explanation đều có thể kiểm tra.”**
+
+---
+
+## Tóm tắt Metric chính
+
+Tất cả giá trị dưới đây là **Validation Mean MAE — lower is better**; làm tròn bốn chữ số thập phân.
+
+| Research question | Comparison chính | Kết luận | Metric source |
+|---|---|---|---|
+| Modality | Text 1,2434; Image 1,4949; Multimodal 1,2385 | Multimodal tốt nhất; gain so với Text là 0,40% | `metrics_EXP_010`, `011`, `012` |
+| Image Backbone | Swin-B 1,2169; SigLIP 1,2296; EfficientNet-B3 1,2800 | Swin-B đứng đầu comparison | `metrics_EXP_020B`, `020E`, `020D` |
+| Text Encoder | PhoBERT 1,1145; XLM-R 1,2169; ViSoBERT 1,2328 | PhoBERT giảm 8,41% so với XLM-R | `metrics_EXP_030B`, `020B`, `030D` |
+| Fusion | Cross-Attention 1,1079; Gated 1,1082; Concat 1,1145; GMU 1,1160; FiLM 1,1195 | Historical Cross-Attention thấp nhất; top two gần như hòa | `metrics_EXP_041B`, `040C`, `030B`, `040B`, `041A` |
+| Loss | MSE 1,1079; Log-Cosh 1,1080; Uncertainty 1,1080; Huber 1,1085 | Không có material difference về aggregate | `metrics_EXP_041B`, `050C`, `051D`, `050B` |
+| Best configuration | EXP_041B: Mean 1,1079; Overall MAE 0,9143; Overall R² 0,6335 | Best recorded aggregate Validation profile | `metrics_EXP_041B_bestimage_besttext_crossattention_mse.json` |
+
+Metric file đầy đủ nằm trong `metrics/`. Không dùng bảng Test từ các progress report cũ vì Backbone, target definition và protocol không đồng nhất với Validation series này.
+
+---
+
+## Danh sách Visual Asset
+
+| Slide | Asset cần dùng | Source path | Trạng thái |
+|---:|---|---|---|
+| 1 | Research value chain | `Figures/Figure_1_1_Research_Value_Chain.png` | Available |
+| 2 | Input–Output của `sample_0000` | Runtime `data/text/test.csv` + `data/image/` | Runtime required |
+| 3 | Dataset funnel | `cleaning_report.json`, source CSV, `preprocess_data.py` | Must generate |
+| 4 | Label formula + Evidence example | `overall_satisfaction_rule_analysis.md` | Must generate |
+| 5 | Controlled Sequential Ablation ladder | `Figures/Figure_5_1_Controlled_Sequential_Ablation_Phases.png` | Available; simplify |
+| 6 | Multi-level XAI map | `Figures/Figure_4_5_Multi_Level_XAI_Pipeline.png` | Available |
+| 7 | AI Agent Evidence Pipeline | `Figures/Figure_4_7_Evidence_Based_AI_Agent_Pipeline.png` | Available |
+| 8 | Current token–patch architecture | `Figures/Figure_4_2_Cross_Attention.png` | Available |
+| 9 | Modality bar chart | EXP_010/011/012 metric JSON | Must generate |
+| 10 | Image Backbone ranked chart | EXP_020B/020D/020E metric JSON | Must generate |
+| 11 | Text Encoder lollipop chart | EXP_020B/030B/030D metric JSON | Must generate |
+| 12 | Fusion dot plot | EXP_030B/040B/040C/041A/041B metric JSON | Must generate |
+| 13 | Loss heatmap table | EXP_041B/050B/050C/051D metric JSON | Must generate |
+| 14 | Best metric vs demo checkpoint dashboard | EXP_041B, EXP_050C, EXP_060A + notebook lineage | Must generate |
+| 15 | Prediction, Grad-CAM, word Attention | `demo_e2e/sample_0000/` và `xai/.../sample_0000/` | Runtime required |
+| 16 | Hai improved Cross-Attention figure + SHAP/LIME summary | Exact Runtime paths trong Slide 16 | Runtime required |
+| 17 | Customer View / Technical View screenshot | `agent_reports/sample_0000/` | Runtime/API key required |
+| 18 | Limitation–impact matrix | Evidence trong Limitation section | Must generate |
+| 19 | P0/P1/P2 roadmap | Future Work priorities | Must generate |
+| 20 | Four-pillar closing visual | Headline statistics + research value chain | Must generate |
+
+---
+
+## Các Backup Slide
+
+## Backup Slide B1 — Phase 6: Component tốt không tự động tạo tổ hợp tốt nhất
+
+### Thông điệp chính
+
+EXP_060A vẫn dẫn đầu Phase 6; thay nhiều component cùng lúc không bảo đảm improvement cộng dồn.
+
+### Nội dung trên slide
+
+- EXP_060A: **1,1080** Mean MAE.
+- EXP_060E: 1,1248; EXP_060C: 1,1256.
+- EXP_060B: 1,2300; EXP_060D: 1,2829.
+- Kết luận: component interaction quan trọng hơn phép cộng winner đơn giản.
+
+### Visual chính
+
+Ranked horizontal bar chart năm EXP_060 configuration; ghi **Validation Mean MAE — lower is better**.
+
+### Dữ liệu / Artifact
 
 - `metrics/metrics_EXP_060A_bestsequential_full_configuration.json`
 - `metrics/metrics_EXP_060B_swinb_visobert_gmu_uncertainty.json`
@@ -434,248 +706,163 @@ A ranked five-bar chart for the Phase 6 configurations, with EXP_060A highlighte
 - `metrics/metrics_EXP_060D_efficientnetb3_visobert_crossattention_logcosh.json`
 - `metrics/metrics_EXP_060E_convnext_phobert_gatedcrossmodal_autoweight.json`
 
-### Speaker note
+### Gợi ý thuyết trình
 
-These newly committed artifacts complete the planned combination comparison. Cross-Attention combinations in this family should still be rerun after migration before being used as evidence for the current token–patch implementation.
-
----
-
-## Slide 15 — Best Recorded Validation Profile
-
-### Key message
-
-The lowest recorded aggregate validation error is 1.1079 Mean MAE, with Overall Satisfaction predicted most accurately.
-
-### On-slide content
-
-- Configuration: Swin-B + PhoBERT + Cross-Attention + MSE.
-- **Mean MAE: 1.1079**; Overall R²: **0.6335**.
-- Food: 1.1024; Price: 1.1728.
-- Atmosphere: 1.1743; Service: 1.1756.
-- **Overall Satisfaction: 0.9143 MAE**.
-
-### Visual
-
-A five-bar per-target MAE chart with a large 1.1079 aggregate callout.
-
-### Data / assets
-
-- `metrics/metrics_EXP_041B_bestimage_besttext_crossattention_mse.json`
-
-### Speaker note
-
-Call this the “best recorded historical validation run,” not a locked-test result and not a post-refactor token–patch result. The target profile shows that Overall Satisfaction is easier than the four aspect scores in this run.
+Dùng slide này khi giảng viên hỏi về Promising Combination Validation. Không đưa vào main deck vì nó không thay đổi chuỗi quyết định chính.
 
 ---
 
-## Slide 16 — XAI Demo: One Prediction, Five Complementary Views
+## Backup Slide B2 — Bảng đầy đủ Validation Metric
 
-### Key message
+### Thông điệp chính
 
-The demo should tell one coherent evidence story, not display a gallery of disconnected explanation plots.
+Toàn bộ 20 metric artifact dùng cùng schema năm target và được sắp theo Mean MAE.
 
-### On-slide content
+### Nội dung trên slide
 
-- Select three distinct cases: accurate, error/conflict, and evidence-rich.
-- Show **Overall Satisfaction Grad-CAM only** for visual focus.
-- Display merged word-level attention plus both Cross-Attention directions.
-- Label SHAP as text-origin/image-origin after fusion, not pure modalities.
-- Present LIME explicitly as a local explanation for the current sample.
+| Rank | Experiment | Mean MAE | Overall MAE | Overall R² |
+|---:|---|---:|---:|---:|
+| 1 | EXP_041B Cross-Attention MSE | **1,1079** | 0,9143 | 0,6335 |
+| 2 | EXP_050C Log-Cosh | 1,1080 | **0,9130** | 0,6312 |
+| 3 | EXP_051D Uncertainty Weighting | 1,1080 | 0,9144 | **0,6337** |
+| 4 | EXP_060A Best Sequential | 1,1080 | 0,9130 | 0,6312 |
+| 5 | EXP_040C Gated Cross-Modal | 1,1082 | 0,9198 | 0,6309 |
+| 6 | EXP_050B Huber | 1,1085 | 0,9131 | 0,6308 |
+| 7 | EXP_030B PhoBERT + Concat | 1,1145 | 0,9300 | 0,6220 |
+| 8 | EXP_040B GMU | 1,1160 | 0,9289 | 0,6246 |
+| 9 | EXP_041A FiLM | 1,1195 | 0,9278 | 0,6215 |
+| 10 | EXP_060E | 1,1248 | 0,9435 | 0,6125 |
+| 11 | EXP_060C | 1,1256 | 0,9354 | 0,6123 |
+| 12 | EXP_020B Swin-B | 1,2169 | 1,0667 | 0,4874 |
+| 13 | EXP_020E SigLIP | 1,2296 | 1,0703 | 0,4715 |
+| 14 | EXP_060B | 1,2300 | 1,0864 | 0,4608 |
+| 15 | EXP_030D ViSoBERT | 1,2328 | 1,0923 | 0,4589 |
+| 16 | EXP_012 Multimodal Baseline | 1,2385 | 1,0876 | 0,4461 |
+| 17 | EXP_010 Text-only | 1,2434 | 1,0880 | 0,4620 |
+| 18 | EXP_020D EfficientNet-B3 | 1,2800 | 1,1296 | 0,4236 |
+| 19 | EXP_060D | 1,2829 | 1,1353 | 0,4259 |
+| 20 | EXP_011 Image-only | 1,4949 | 1,3808 | 0,0525 |
 
-### Visual
+### Visual chính
 
-One composite case dashboard: review/images, prediction vs ground truth, Grad-CAM, readable words, bidirectional token–patch evidence, and compact SHAP/LIME summaries.
+Một ranked table duy nhất; dùng màu nhấn cho best Mean MAE, best Overall MAE và best Overall R².
 
-### Data / assets
+### Dữ liệu / Artifact
 
-- `Success_End_to_End_XAI_AI_Agent.ipynb`
+- Toàn bộ `metrics/*.json`.
+
+### Gợi ý thuyết trình
+
+Chỉ mở khi cần tra cứu số cụ thể. Không suy ra statistical significance từ thứ hạng một seed.
+
+---
+
+## Backup Slide B3 — Dataset filtering và hai phiên bản split
+
+### Thông điệp chính
+
+Các con số Dataset không mâu thuẫn; chúng thuộc các stage và version khác nhau của Data Pipeline.
+
+### Nội dung trên slide
+
+- Raw: 24.599 ảnh từ 11.111 review.
+- Cleaned: 22.150 image record, 6.082 review có ảnh.
+- Required-field filtering: 22.146 image record.
+- Current grouping: 6.080 review-level sample → 4.864/608/608.
+- Recorded experiment package: 6.000 sample → **4.800/600/600**.
+
+### Visual chính
+
+Versioned provenance timeline, tách rõ “current preprocessing output” và “dataset package used by recorded experiments”.
+
+### Dữ liệu / Artifact
+
+- `data_raw/cleaning_report.json`
+- `data_raw/multimodal_reviews.csv`
+- `data_processed/reviews_clean_enhanced.csv`
+- `preprocess_data.py`
+- `doc/changelog.md`
+- Training outputs trong các experiment notebook.
+
+### Gợi ý thuyết trình
+
+Main deck dùng 4.800/600/600 khi mô tả experiment protocol. Current 4.864/608/608 chỉ mô tả logic mới; cả hai split CSV snapshot đều không có trong repository hiện tại. Trước khi tạo Runtime Artifact, cần đồng bộ `xai/config.py` từ `SCORE_RANGE=(1,10)` về miền label thực tế 0–10.
+
+---
+
+## Backup Slide B4 — Cross-Attention migration và checkpoint lineage
+
+### Thông điệp chính
+
+Source code hiện đã là token–patch, nhưng committed metrics và demo checkpoint vẫn có provenance từ pooled-vector Cross-Attention lịch sử.
+
+### Nội dung trên slide
+
+- Historical: pooled text/image vector → attention matrix 1×1.
+- Current: text token sequence ↔ image patch sequence.
+- Refactor commit `1f00508` ngày 27/06/2026.
+- `EXP_050C_truecrossattn_logcosh.ipynb` chưa chạy, không có metric mới.
+- Lineage demo: EXP_050C checkpoint → EXP_060A folder → current Runtime loader.
+
+### Visual chính
+
+Before/After diagram kết hợp checkpoint lineage; dùng màu khác nhau cho “training provenance” và “Runtime implementation”.
+
+### Dữ liệu / Artifact
+
+- Git history của `Models/CrossAttentionFusion.py`
+- `Models/CrossAttentionFusion.py`
+- `notebook/EXP_050C_truecrossattn_logcosh.ipynb`
+- `notebook/EXP_060A_bestsequential_full_configuration.ipynb`
+- `xai/utils.py`
+
+### Gợi ý thuyết trình
+
+`load_model()` dựng current class và load state dict với `strict=True`, nhưng điều đó không biến checkpoint cũ thành checkpoint đã train token–patch. Cần controlled rerun để gắn metric cho current architecture.
+
+---
+
+## Backup Slide B5 — XAI Artifact contract mở rộng cho `sample_0000`
+
+### Thông điệp chính
+
+Demo lưu cả lecturer-facing visual và machine-readable Evidence để mọi report có thể truy vết về Artifact gốc.
+
+### Nội dung trên slide
+
+- Grad-CAM: per-image Overall overlay + `metadata.json`.
+- Attention: word bar + `word_importance.json` + raw tensor.
+- Cross-Attention: hai improved figure + Top-K JSON + raw NPZ.
+- SHAP: per-target contribution JSON + raw values; LIME: text/image output.
+- Agent: JSON report + Vietnamese Markdown report + validation warning.
+
+### Visual chính
+
+Artifact tree cho duy nhất `sample_0000`, phân biệt PNG dùng trình bày và JSON/NPZ dùng audit.
+
+### Dữ liệu / Artifact
+
+- `Success_End_to_End_XAI_AI_Agent_Sample_0000_Improved_CrossAttention.ipynb`
 - `xai/case_study.py`
-- Runtime artifacts under the configured experiment `xai/` and demo output directories.
-- `Figures/Figure_4_5_Multi_Level_XAI_Pipeline.png` as fallback if runtime capture is unavailable.
+- Runtime folders dưới `EXP_060A.../xai/` và `demo_e2e/`.
 
-### Speaker note
+### Gợi ý thuyết trình
 
-The notebook contains robust three-case selection and safe per-method fallbacks, but it has no committed cell outputs. Capture the final composite from a successful Colab run before building the PowerPoint; until then, use the pipeline figure rather than invented examples.
-
----
-
-## Slide 17 — AI Agent Demo: From Evidence to Two Audience-Specific Reports
-
-### Key message
-
-The Agent converts fixed predictions and XAI evidence into a structured explanation while exposing missing evidence and validation warnings.
-
-### On-slide content
-
-- Prediction scores remain unchanged throughout the Agent pipeline.
-- Reasoning graph records support, conflict, and missing evidence.
-- Validator checks all five targets and SHAP grounding.
-- Customer View is concise; Technical View preserves provenance and limitations.
-- GPT-4o runs only when `OPENAI_API_KEY` is available.
-
-### Visual
-
-A split-screen runtime capture: Customer View on the left, Technical View with evidence completeness on the right.
-
-### Data / assets
-
-- `Success_End_to_End_XAI_AI_Agent.ipynb`
-- `agent/output_schema.py`, `agent/validator.py`, `agent/report_generator.py`
-- `Figures/Figure_4_7_Evidence_Based_AI_Agent_Pipeline.png`
-- Runtime-generated Agent Markdown/JSON report; none is currently committed.
-
-### Speaker note
-
-If the API key is unavailable during the presentation, the notebook skips the Agent without breaking the XAI pipeline. Use a pre-captured report only after it has been generated from the same selected sample and artifact set.
+Chỉ hiển thị Artifact đã được tạo thật. Repository hiện mới có code sinh Artifact, chưa có Runtime package của `sample_0000`.
 
 ---
 
-## Slide 18 — Limitations: What the Current Evidence Does Not Yet Prove
+## Danh sách kiểm tra ngắn
 
-### Key message
-
-The system is technically broad and experimentally promising, but final generalization and explanation quality still require stronger evaluation.
-
-### On-slide content
-
-- No committed locked-test metrics, predictions, or split snapshot.
-- Historical Cross-Attention metrics pre-date the current token–patch refactor.
-- Rule-based weak labels retain phrase, negation, and discourse noise.
-- XAI shows model association or local sensitivity, not causality.
-- No committed XAI/Agent runtime package or human evaluation yet.
-
-### Visual
-
-A five-item “evidence boundary” panel, each limitation paired with its required validation action.
-
-### Data / assets
-
-- `data_processed/overall_satisfaction_rule_analysis.md`
-- Git history for `Models/CrossAttentionFusion.py` and `metrics/`
-- `xai/config.py` for the remaining 1–10 versus data 0–10 range inconsistency.
-- Notebook metadata showing zero executed cells and zero outputs.
-
-### Speaker note
-
-Keep this slide factual and brief. Also note that `xai/config.py` currently declares a 1–10 range although source labels include 0; this should be corrected before final artifact generation.
-
----
-
-## Slide 19 — Future Work: Turn the Pipeline into Reproducible Final Evidence
-
-### Key message
-
-The next priority is not another architecture—it is a versioned, statistically defensible evaluation of the current system.
-
-### On-slide content
-
-- Retrain the token–patch model with multiple seeds.
-- Freeze and version train/validation/test splits and checkpoint hashes.
-- Run one locked-test evaluation with prediction-level artifacts.
-- Generate complete XAI case packages and conduct human evaluation.
-- Test missing-modality robustness and restaurant-level leakage controls.
-
-### Visual
-
-A short roadmap with three milestones: reproducibility → final evaluation → explanation validation.
-
-### Data / assets
-
-- `Figures/Figure_7_1_Proposed_Deployment_Architecture.png`
-- `Trainer.py`, `test.py`, and planned `test_metrics.json` / predictions artifacts.
-
-### Speaker note
-
-Fix the score-range inconsistency before producing final explanations. Human evaluation should assess usefulness, faithfulness, clarity, and whether the Agent stays grounded in the supplied evidence.
-
----
-
-## Slide 20 — Takeaway: A Complete Research Pipeline, Not Just a Model
-
-### Key message
-
-The project’s strongest contribution is an end-to-end, traceable Vietnamese multimodal research system—from data and labels to controlled results and human-readable evidence.
-
-### On-slide content
-
-- **Data:** 9,946 valid reviews; 22,150 valid review–image pairs.
-- **Labels:** 14 evidence-bearing rules; 3,263 adjusted reviews.
-- **Experiments:** 20 validation artifacts; best recorded Mean MAE **1.1079**.
-- **Explanation:** five XAI views plus a grounded reporting Agent.
-- Final message: prediction, evidence, and reporting remain explicitly separated.
-
-### Visual
-
-A four-pillar closing graphic—Dataset, Labels, Experiments, Explanations—feeding one traceable research pipeline.
-
-### Data / assets
-
-- `Figures/Figure_1_1_Research_Value_Chain.png`
-- The four headline statistics above from the listed dataset, label, and metric artifacts.
-
-### Speaker note
-
-Close on system-level value rather than a marginal metric difference. The project demonstrates how a Vietnamese multimodal prediction task can be made measurable, explainable, and ready for stronger final validation.
-
----
-
-## Compact metric and source summary
-
-All values below are validation Mean MAE unless otherwise stated; lower is better.
-
-| Comparison | Values to present | Main conclusion | Exact source |
-|---|---|---|---|
-| Modality | Text 1.2434; Image 1.4949; Multimodal 1.2385 | Multimodal is best, but only 0.4% better than text-only | `metrics_EXP_010`, `011`, `012` JSONs |
-| Image backbone | Swin-B 1.2169; SigLIP 1.2296; EfficientNet-B3 1.2800 | Swin-B wins the controlled image phase | `metrics_EXP_020B`, `020E`, `020D` JSONs |
-| Text backbone | PhoBERT 1.1145; XLM-R 1.2169; ViSoBERT 1.2328 | PhoBERT gives the largest sequential gain: 8.4% vs XLM-R | `metrics_EXP_030B`, `020B`, `030D` JSONs |
-| Fusion | Cross-Attention 1.1079; Gated 1.1082; Concat 1.1145; GMU 1.1160; FiLM 1.1195 | Cross-Attention is lowest historically; top two are nearly tied | `metrics_EXP_041B`, `040C`, `030B`, `040B`, `041A` JSONs |
-| Loss | MSE 1.1079; Log-Cosh 1.1080; Uncertainty 1.1080; Huber 1.1085 | Aggregate differences are negligible | `metrics_EXP_041B`, `050C`, `051D`, `050B` JSONs |
-| Phase 6 | 060A 1.1080; 060E 1.1248; 060C 1.1256; 060B 1.2300; 060D 1.2829 | Alternative combinations do not beat the sequential configuration | Five `metrics_EXP_060*.json` files |
-| Best recorded profile | Mean 1.1079; Overall MAE 0.9143; Overall R² 0.6335 | Best historical aggregate validation result | `metrics_EXP_041B_bestimage_besttext_crossattention_mse.json` |
-
-Dataset headline sources:
-
-- Raw and cleaned counts: `data_raw/cleaning_report.json`.
-- Label rules and coverage: `data_processed/overall_satisfaction_rule_analysis.md` and `overall_satisfaction_rules.json`.
-- Grouped sample construction and deterministic split logic: `preprocess_data.py` plus the two current source CSVs.
-- Metric semantics: `Trainer.validate()` and committed `metrics/*.json` files.
-
-Do not mix older progress-report test tables with this validation series; their backbones, target definitions, and protocols differ.
-
----
-
-## Visual asset checklist
-
-| Priority | Asset | Source / creation instruction | Status before deck generation |
-|---|---|---|---|
-| P0 | Title value-chain graphic | Adapt `Figure_1_1_Research_Value_Chain.png` | Available |
-| P0 | Problem input/output diagram | Create from target schema; use a real runtime sample | Create |
-| P0 | Dataset funnel | Rebuild from `cleaning_report.json` and preprocessing counts | Create |
-| P0 | Label formula/evidence card | Create from rule analysis; no long rule table | Create |
-| P0 | Controlled ablation ladder | Simplify `Figure_5_1_Controlled_Sequential_Ablation_Phases.png` | Available / simplify |
-| P0 | Current token–patch architecture | Use `Figure_4_2_Cross_Attention.png` | Available |
-| P0 | Six result charts | Generate directly from the 20 metric JSON files | Create programmatically |
-| P0 | Best model per-target bars | Generate from EXP_041B JSON | Create programmatically |
-| P0 | XAI case dashboard | Capture from a successful end-to-end Colab run | Runtime required |
-| P0 | Agent two-view report | Capture from the same sample and evidence package | Runtime/API key required |
-| P1 | Limitation boundary panel | Create as five icon/action pairs | Create |
-| P1 | Closing four-pillar graphic | Adapt the research value chain | Create |
-
-Use a consistent rule for chart precision: four decimals in source notes, four decimals for close model comparisons, and no more than two decimals for percentages. Every chart must state **Validation Mean MAE — lower is better**.
-
----
-
-## Short validation checklist
-
-- [ ] Exactly 20 slides; each slide communicates one message and uses one main visual.
-- [ ] Every experimental chart is generated from `metrics/*.json`, not copied from an older report.
-- [ ] All experiment results are labeled **validation**, never test.
-- [ ] The best value is described as “best recorded historical validation,” not current locked-test performance.
-- [ ] The current token–patch architecture is not assigned pre-refactor metrics.
-- [ ] Dataset scale is consistent: 9,946 valid reviews, 22,150 valid pairs, 6,080 grouped trainable samples.
-- [ ] Score range is presented as 0–10; fix `xai/config.py` before final runtime artifact generation.
-- [ ] Grad-CAM visible output is Overall Satisfaction only; Attention is merged to readable words.
-- [ ] Cross-Attention shows both directions; SHAP origins are not described as pure modalities; LIME is called local.
-- [ ] XAI and Agent screenshots are used only after real runtime artifacts exist for the same sample.
-- [ ] GPT-4o is described only as an optional evidence verbalizer; it never predicts or modifies scores.
-- [ ] Limitations and future work remain concise, specific, and action-oriented.
+- [ ] Đúng 20 slide chính; Slide 18, 19 và 20 lần lượt là Giới hạn, Lộ trình tiếp theo và Thông điệp kết luận.
+- [ ] Toàn bộ proposal viết bằng tiếng Việt; technical term, model name, Metric và filename giữ nguyên khi cần.
+- [ ] Mỗi slide có tối đa 3–5 bullet trên slide và chỉ một Visual chính.
+- [ ] Tất cả result chart ghi **Validation Mean MAE — lower is better**; không gọi là Test.
+- [ ] EXP_041B được gọi là best aggregate Validation; EXP_060A/EXP_050C được gọi là demo/reference checkpoint.
+- [ ] Comparison EXP_060A–EXP_060E chỉ nằm trong Backup Slide B1, không nằm trong main deck.
+- [ ] Dataset stage được phân biệt rõ: 24.599 → 22.150 → 22.146 → 6.080; experiment split là 4.800/600/600; score scale là 0–10.
+- [ ] Demo chỉ dùng một mẫu cố định: `sample_0000`, test index 0, review bánh canh cua.
+- [ ] Slide 16 dùng `top_tokens_patch_overlay_grid.png` và `top_patches_token_rankings.png` làm Visual focus.
+- [ ] Không gán historical metric cho current token–patch implementation; không nói Attention chứng minh causality.
+- [ ] SHAP dùng Text-origin/Image-origin sau Fusion; LIME được mô tả là Local Explanation.
+- [ ] Không dùng XAI screenshot hoặc AI Agent report trước khi Runtime artifact thật được tạo và Human Review.
