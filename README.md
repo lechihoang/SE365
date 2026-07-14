@@ -12,7 +12,7 @@ Dự án xây dựng mô hình Phân tích Cảm xúc Đa phương thức (Multi
 
 ## Dataset
 
-Dữ liệu được thu thập từ Foody thông qua `crawl_data_from_foody.ipynb` và làm sạch trong `clean_foody_dataset.ipynb`. Nhãn `overall_satisfaction` được sinh thêm từ `01_generate_overall_satisfaction.ipynb`. Dữ liệu chia thành 3 tập: Train, Validation, Test.
+Dữ liệu được thu thập từ Foody thông qua [crawl_data_from_foody.ipynb](notebook/crawl_data_from_foody.ipynb) và làm sạch trong [clean_foody_dataset.ipynb](notebook/clean_foody_dataset.ipynb). Nhãn `overall_satisfaction` được sinh thêm từ [01_generate_overall_satisfaction.ipynb](notebook/01_generate_overall_satisfaction.ipynb). Dữ liệu chia thành 3 tập: Train, Validation, Test.
 
 ---
 
@@ -20,13 +20,13 @@ Dữ liệu được thu thập từ Foody thông qua `crawl_data_from_foody.ipy
 
 Chạy lần lượt theo thứ tự sau (khuyến nghị dùng GPU và môi trường `.venv`):
 
-1. `crawl_data_from_foody.ipynb` — Thu thập dữ liệu từ Foody.
-2. `clean_foody_dataset.ipynb` — Làm sạch dữ liệu, chia split Train/Val/Test.
-3. `01_generate_overall_satisfaction.ipynb` — Tạo nhãn `overall_satisfaction`.
+1. [crawl_data_from_foody.ipynb](notebook/crawl_data_from_foody.ipynb) — Thu thập dữ liệu từ Foody.
+2. [clean_foody_dataset.ipynb](notebook/clean_foody_dataset.ipynb) — Làm sạch dữ liệu, chia split Train/Val/Test.
+3. [01_generate_overall_satisfaction.ipynb](notebook/01_generate_overall_satisfaction.ipynb) — Tạo nhãn `overall_satisfaction`.
 4. Chạy tuần tự các nhóm notebook `EXP_01*` đến `EXP_05*` để tái hiện quá trình lựa chọn kiến trúc (chỉ đánh giá trên tập Validation).
 5. Chạy các notebook `EXP_060*` để huấn luyện và đánh giá toàn diện trên cả Validation và Test.
-6. `generate_experiment_leaderboard.ipynb` — Tổng hợp toàn bộ kết quả thành bảng xếp hạng.
-7. `demo_single_sample_exp060A.ipynb` — Demo dự đoán với mô hình tốt nhất.
+6. [generate_experiment_leaderboard.ipynb](notebook/generate_experiment_leaderboard.ipynb) — Tổng hợp toàn bộ kết quả thành bảng xếp hạng.
+7. [demo_single_sample_exp060A.ipynb](notebook/demo_single_sample_exp060A.ipynb) — Demo dự đoán với mô hình tốt nhất.
 
 ---
 
