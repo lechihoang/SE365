@@ -86,10 +86,10 @@ Input–Output diagram dùng đúng `sample_0000`: review bánh canh cua + các 
 ### Nội dung trên slide
 
 - **300 nhà hàng** trong nguồn dữ liệu Foody.
-- **11.111 review thô** được thu thập.
-- **9.946 review hợp lệ** sau Data Cleaning.
+- **11.111 text + 24.599 image thô** được thu thập.
+- **9.946 text hợp lệ** sau Data Cleaning.
 - **22.150 image record** sau Data Cleaning.
-- Gói experiment: **6.000 sample → 4.800 Train / 600 Validation / 600 Test**.
+- Gói experiment: **6.000 sample (1 text + 1-4 image) → 4.800 Train / 600 Validation / 600 Test**.
 
 ### Visual chính
 
@@ -634,14 +634,14 @@ Kết thúc bằng system-level contribution, không bằng chênh lệch Metric
 
 Tất cả giá trị dưới đây là **Validation Mean MAE — lower is better**; làm tròn bốn chữ số thập phân.
 
-| Research question | Comparison chính | Kết luận | Metric source |
-|---|---|---|---|
-| Modality | Text 1,2434; Image 1,4949; Multimodal 1,2385 | Multimodal tốt nhất; gain so với Text là 0,40% | `metrics_EXP_010`, `011`, `012` |
-| Image Backbone | Swin-B 1,2169; SigLIP 1,2296; EfficientNet-B3 1,2800 | Swin-B đứng đầu comparison | `metrics_EXP_020B`, `020E`, `020D` |
-| Text Encoder | PhoBERT 1,1145; XLM-R 1,2169; ViSoBERT 1,2328 | PhoBERT giảm 8,41% so với XLM-R | `metrics_EXP_030B`, `020B`, `030D` |
-| Fusion | Cross-Attention 1,1079; Gated 1,1082; Concat 1,1145; GMU 1,1160; FiLM 1,1195 | Historical Cross-Attention thấp nhất; top two gần như hòa | `metrics_EXP_041B`, `040C`, `030B`, `040B`, `041A` |
-| Loss | MSE 1,1079; Log-Cosh 1,1080; Uncertainty 1,1080; Huber 1,1085 | Không có material difference về aggregate | `metrics_EXP_041B`, `050C`, `051D`, `050B` |
-| Best configuration | EXP_041B: Mean 1,1079; Overall MAE 0,9143; Overall R² 0,6335 | Best recorded aggregate Validation profile | `metrics_EXP_041B_bestimage_besttext_crossattention_mse.json` |
+| Research question  | Comparison chính                                                             | Kết luận                                                  | Metric source                                                 |
+| ------------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------- |
+| Modality           | Text 1,2434; Image 1,4949; Multimodal 1,2385                                 | Multimodal tốt nhất; gain so với Text là 0,40%            | `metrics_EXP_010`, `011`, `012`                               |
+| Image Backbone     | Swin-B 1,2169; SigLIP 1,2296; EfficientNet-B3 1,2800                         | Swin-B đứng đầu comparison                                | `metrics_EXP_020B`, `020E`, `020D`                            |
+| Text Encoder       | PhoBERT 1,1145; XLM-R 1,2169; ViSoBERT 1,2328                                | PhoBERT giảm 8,41% so với XLM-R                           | `metrics_EXP_030B`, `020B`, `030D`                            |
+| Fusion             | Cross-Attention 1,1079; Gated 1,1082; Concat 1,1145; GMU 1,1160; FiLM 1,1195 | Historical Cross-Attention thấp nhất; top two gần như hòa | `metrics_EXP_041B`, `040C`, `030B`, `040B`, `041A`            |
+| Loss               | MSE 1,1079; Log-Cosh 1,1080; Uncertainty 1,1080; Huber 1,1085                | Không có material difference về aggregate                 | `metrics_EXP_041B`, `050C`, `051D`, `050B`                    |
+| Best configuration | EXP_041B: Mean 1,1079; Overall MAE 0,9143; Overall R² 0,6335                 | Best recorded aggregate Validation profile                | `metrics_EXP_041B_bestimage_besttext_crossattention_mse.json` |
 
 Metric file đầy đủ nằm trong `metrics/`. Không dùng bảng Test từ các progress report cũ vì Backbone, target definition và protocol không đồng nhất với Validation series này.
 
@@ -649,28 +649,28 @@ Metric file đầy đủ nằm trong `metrics/`. Không dùng bảng Test từ c
 
 ## Danh sách Visual Asset
 
-| Slide | Asset cần dùng | Source path | Trạng thái |
-|---:|---|---|---|
-| 1 | Research value chain | `Figures/Figure_1_1_Research_Value_Chain.png` | Available |
-| 2 | Input–Output của `sample_0000` | Runtime `data/text/test.csv` + `data/image/` | Runtime required |
-| 3 | Dataset funnel | `cleaning_report.json`, source CSV, `preprocess_data.py` | Must generate |
-| 4 | Label formula + Evidence example | `overall_satisfaction_rule_analysis.md` | Must generate |
-| 5 | Controlled Sequential Ablation ladder | `Figures/Figure_5_1_Controlled_Sequential_Ablation_Phases.png` | Available; simplify |
-| 6 | Multi-level XAI map | `Figures/Figure_4_5_Multi_Level_XAI_Pipeline.png` | Available |
-| 7 | AI Agent Evidence Pipeline | `Figures/Figure_4_7_Evidence_Based_AI_Agent_Pipeline.png` | Available |
-| 8 | Current token–patch architecture | `Figures/Figure_4_2_Cross_Attention.png` | Available |
-| 9 | Modality bar chart | EXP_010/011/012 metric JSON | Must generate |
-| 10 | Image Backbone ranked chart | EXP_020B/020D/020E metric JSON | Must generate |
-| 11 | Text Encoder lollipop chart | EXP_020B/030B/030D metric JSON | Must generate |
-| 12 | Fusion dot plot | EXP_030B/040B/040C/041A/041B metric JSON | Must generate |
-| 13 | Loss heatmap table | EXP_041B/050B/050C/051D metric JSON | Must generate |
-| 14 | Hai card: best aggregate vs demo/reference | Metric JSON của EXP_041B, EXP_050C và EXP_060A | Must generate |
-| 15 | Prediction, Grad-CAM, word Attention | `demo_e2e/sample_0000/` và `xai/.../sample_0000/` | Runtime required |
-| 16 | Hai improved Cross-Attention figure + SHAP/LIME summary | Exact Runtime paths trong Slide 16 | Runtime required |
-| 17 | Customer View / Technical View screenshot | `agent_reports/sample_0000/` | Runtime/API key required |
-| 18 | Limitation–impact matrix | Evidence trong Limitation section | Must generate |
-| 19 | P0/P1/P2 roadmap | Future Work priorities | Must generate |
-| 20 | Four-pillar closing visual | Headline statistics + research value chain | Must generate |
+| Slide | Asset cần dùng                                          | Source path                                                    | Trạng thái               |
+| ----: | ------------------------------------------------------- | -------------------------------------------------------------- | ------------------------ |
+|     1 | Research value chain                                    | `Figures/Figure_1_1_Research_Value_Chain.png`                  | Available                |
+|     2 | Input–Output của `sample_0000`                          | Runtime `data/text/test.csv` + `data/image/`                   | Runtime required         |
+|     3 | Dataset funnel                                          | `cleaning_report.json`, source CSV, `preprocess_data.py`       | Must generate            |
+|     4 | Label formula + Evidence example                        | `overall_satisfaction_rule_analysis.md`                        | Must generate            |
+|     5 | Controlled Sequential Ablation ladder                   | `Figures/Figure_5_1_Controlled_Sequential_Ablation_Phases.png` | Available; simplify      |
+|     6 | Multi-level XAI map                                     | `Figures/Figure_4_5_Multi_Level_XAI_Pipeline.png`              | Available                |
+|     7 | AI Agent Evidence Pipeline                              | `Figures/Figure_4_7_Evidence_Based_AI_Agent_Pipeline.png`      | Available                |
+|     8 | Current token–patch architecture                        | `Figures/Figure_4_2_Cross_Attention.png`                       | Available                |
+|     9 | Modality bar chart                                      | EXP_010/011/012 metric JSON                                    | Must generate            |
+|    10 | Image Backbone ranked chart                             | EXP_020B/020D/020E metric JSON                                 | Must generate            |
+|    11 | Text Encoder lollipop chart                             | EXP_020B/030B/030D metric JSON                                 | Must generate            |
+|    12 | Fusion dot plot                                         | EXP_030B/040B/040C/041A/041B metric JSON                       | Must generate            |
+|    13 | Loss heatmap table                                      | EXP_041B/050B/050C/051D metric JSON                            | Must generate            |
+|    14 | Hai card: best aggregate vs demo/reference              | Metric JSON của EXP_041B, EXP_050C và EXP_060A                 | Must generate            |
+|    15 | Prediction, Grad-CAM, word Attention                    | `demo_e2e/sample_0000/` và `xai/.../sample_0000/`              | Runtime required         |
+|    16 | Hai improved Cross-Attention figure + SHAP/LIME summary | Exact Runtime paths trong Slide 16                             | Runtime required         |
+|    17 | Customer View / Technical View screenshot               | `agent_reports/sample_0000/`                                   | Runtime/API key required |
+|    18 | Limitation–impact matrix                                | Evidence trong Limitation section                              | Must generate            |
+|    19 | P0/P1/P2 roadmap                                        | Future Work priorities                                         | Must generate            |
+|    20 | Four-pillar closing visual                              | Headline statistics + research value chain                     | Must generate            |
 
 ---
 
@@ -715,28 +715,28 @@ Toàn bộ 20 artifact chứa Metric dùng cùng schema năm target và được
 
 ### Nội dung trên slide
 
-| Rank | Experiment | Mean MAE | Overall MAE | Overall R² |
-|---:|---|---:|---:|---:|
-| 1 | EXP_041B Cross-Attention MSE | **1,1079** | 0,9143 | 0,6335 |
-| 2 | EXP_050C Log-Cosh | 1,1080 | **0,9130** | 0,6312 |
-| 3 | EXP_051D Uncertainty Weighting | 1,1080 | 0,9144 | **0,6337** |
-| 4 | EXP_060A Best Sequential | 1,1080 | 0,9130 | 0,6312 |
-| 5 | EXP_040C Gated Cross-Modal | 1,1082 | 0,9198 | 0,6309 |
-| 6 | EXP_050B Huber | 1,1085 | 0,9131 | 0,6308 |
-| 7 | EXP_030B PhoBERT + Concat | 1,1145 | 0,9300 | 0,6220 |
-| 8 | EXP_040B GMU | 1,1160 | 0,9289 | 0,6246 |
-| 9 | EXP_041A FiLM | 1,1195 | 0,9278 | 0,6215 |
-| 10 | EXP_060E | 1,1248 | 0,9435 | 0,6125 |
-| 11 | EXP_060C | 1,1256 | 0,9354 | 0,6123 |
-| 12 | EXP_020B Swin-B | 1,2169 | 1,0667 | 0,4874 |
-| 13 | EXP_020E SigLIP | 1,2296 | 1,0703 | 0,4715 |
-| 14 | EXP_060B | 1,2300 | 1,0864 | 0,4608 |
-| 15 | EXP_030D ViSoBERT | 1,2328 | 1,0923 | 0,4589 |
-| 16 | EXP_012 Multimodal Baseline | 1,2385 | 1,0876 | 0,4461 |
-| 17 | EXP_010 Text-only | 1,2434 | 1,0880 | 0,4620 |
-| 18 | EXP_020D EfficientNet-B3 | 1,2800 | 1,1296 | 0,4236 |
-| 19 | EXP_060D | 1,2829 | 1,1353 | 0,4259 |
-| 20 | EXP_011 Image-only | 1,4949 | 1,3808 | 0,0525 |
+| Rank | Experiment                     |   Mean MAE | Overall MAE | Overall R² |
+| ---: | ------------------------------ | ---------: | ----------: | ---------: |
+|    1 | EXP_041B Cross-Attention MSE   | **1,1079** |      0,9143 |     0,6335 |
+|    2 | EXP_050C Log-Cosh              |     1,1080 |  **0,9130** |     0,6312 |
+|    3 | EXP_051D Uncertainty Weighting |     1,1080 |      0,9144 | **0,6337** |
+|    4 | EXP_060A Best Sequential       |     1,1080 |      0,9130 |     0,6312 |
+|    5 | EXP_040C Gated Cross-Modal     |     1,1082 |      0,9198 |     0,6309 |
+|    6 | EXP_050B Huber                 |     1,1085 |      0,9131 |     0,6308 |
+|    7 | EXP_030B PhoBERT + Concat      |     1,1145 |      0,9300 |     0,6220 |
+|    8 | EXP_040B GMU                   |     1,1160 |      0,9289 |     0,6246 |
+|    9 | EXP_041A FiLM                  |     1,1195 |      0,9278 |     0,6215 |
+|   10 | EXP_060E                       |     1,1248 |      0,9435 |     0,6125 |
+|   11 | EXP_060C                       |     1,1256 |      0,9354 |     0,6123 |
+|   12 | EXP_020B Swin-B                |     1,2169 |      1,0667 |     0,4874 |
+|   13 | EXP_020E SigLIP                |     1,2296 |      1,0703 |     0,4715 |
+|   14 | EXP_060B                       |     1,2300 |      1,0864 |     0,4608 |
+|   15 | EXP_030D ViSoBERT              |     1,2328 |      1,0923 |     0,4589 |
+|   16 | EXP_012 Multimodal Baseline    |     1,2385 |      1,0876 |     0,4461 |
+|   17 | EXP_010 Text-only              |     1,2434 |      1,0880 |     0,4620 |
+|   18 | EXP_020D EfficientNet-B3       |     1,2800 |      1,1296 |     0,4236 |
+|   19 | EXP_060D                       |     1,2829 |      1,1353 |     0,4259 |
+|   20 | EXP_011 Image-only             |     1,4949 |      1,3808 |     0,0525 |
 
 ### Visual chính
 
