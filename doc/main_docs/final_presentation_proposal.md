@@ -85,15 +85,15 @@ Input–Output diagram dùng đúng `sample_0000`: review bánh canh cua + các 
 
 ### Nội dung trên slide
 
-- Raw crawl: **300 nhà hàng, 11.111 review, 24.599 ảnh**.
-- Sau Data Cleaning: **9.946 valid review, 22.150 cleaned image record**.
-- **6.082 review có ảnh**, tương đương **61,15%** coverage.
-- Current preprocessing: **22.150 → 22.146 record → 6.080 review-level sample**.
-- Gói dữ liệu dùng cho các experiment đã ghi nhận: **4.800 / 600 / 600**.
+- **300 nhà hàng** trong nguồn dữ liệu Foody.
+- **11.111 review thô** được thu thập.
+- **9.946 review hợp lệ** sau Data Cleaning.
+- **22.150 image record** sau Data Cleaning.
+- Gói experiment: **6.000 sample → 4.800 Train / 600 Validation / 600 Test**.
 
 ### Visual chính
 
-Data funnel hai tầng: tầng trên thể hiện raw → cleaned; tầng dưới thể hiện image record → review-level grouping → experiment split.
+Data funnel một chiều: Foody crawl → review hợp lệ + image record sau Data Cleaning → gói experiment 6.000 sample → Train/Validation/Test.
 
 ### Dữ liệu / Artifact
 
@@ -106,7 +106,7 @@ Data funnel hai tầng: tầng trên thể hiện raw → cleaned; tầng dướ
 
 ### Gợi ý thuyết trình
 
-22.150 là cleaned image record; 22.146 là số còn lại sau required-field filtering; 6.080 là số nhóm review đầy đủ theo current preprocessing. Các metrics đã commit được tạo trên gói experiment 6.000 mẫu; CSV snapshot và hash của split này chưa được commit.
+Chi tiết current preprocessing là **22.150 → 22.146 image record → 6.080 sample ở cấp review**, tương ứng split **4.864/608/608**; xem Backup B3. Main slide dùng gói **6.000 sample → 4.800/600/600** vì đây là package gắn với các experiment đã ghi nhận; CSV snapshot và hash của split này chưa được commit.
 
 ---
 
@@ -148,7 +148,7 @@ Giá trị nghiên cứu nằm ở provenance: mọi thay đổi label đều c�
 
 ### Nội dung trên slide
 
-- **20 Validation metric artifact** theo cùng schema năm target.
+- **20 artifact chứa Metric Validation** theo cùng schema năm target.
 - Năm câu hỏi: modality, Image Backbone, Text Encoder, Fusion, Loss.
 - Mỗi phase giữ winner trước đó và chỉ thay một thành phần chính.
 - Mean MAE là criterion chọn model; MAE, RMSE và R² theo từng target.
@@ -262,7 +262,7 @@ Sơ đồ đối xứng: token sequence ở trái, patch grid ở phải, hai m�
 
 ### Gợi ý thuyết trình
 
-Đây là kiến trúc hiện hành trong source code và là attachment point cho improved Cross-Attention visualization. Phần kết quả tiếp theo vẫn phải được đọc theo provenance của từng metric artifact.
+Đây là kiến trúc hiện hành trong source code và là attachment point cho improved Cross-Attention visualization. Phần kết quả tiếp theo vẫn phải được đọc theo provenance của từng artifact Metric.
 
 ---
 
@@ -292,7 +292,7 @@ Bar chart ba cột, sắp xếp từ thấp đến cao; highlight Multimodal và
 
 ### Gợi ý thuyết trình
 
-Đây là câu trả lời thực nghiệm trực tiếp cho giá trị của Multimodal input. Kết luận cần cân bằng: Image có Evidence bổ sung, nhưng aggregate gain trên Text-only chỉ 0,40%.
+Đây là câu trả lời thực nghiệm trực tiếp cho giá trị của Multimodal input. Kết luận cần cân bằng: Image bổ sung tín hiệu cho Text, nhưng aggregate gain trên Text-only chỉ 0,40%.
 
 ---
 
@@ -427,28 +427,25 @@ Không so sánh raw Loss value giữa các objective khác nhau. Kết luận tr
 
 ### Nội dung trên slide
 
-- **Best aggregate Validation:** EXP_041B + MSE, Mean MAE **1,1079**.
-- Target-wise MAE: Food 1,1024; Price 1,1728; Atmosphere 1,1743; Service 1,1756; Overall 0,9143.
-- **Demo/reference:** EXP_060A sao chép checkpoint EXP_050C + Log-Cosh.
-- Demo metric: Mean MAE **1,1080**; Overall MAE **0,9130**.
-- `BEST_EXP_ID` và notebook cố định Runtime vào EXP_060A.
+- **Best aggregate Validation configuration:** EXP_041B + MSE.
+- Validation Mean MAE: **1,1079**.
+- **Demo/reference checkpoint:** EXP_060A / EXP_050C + Log-Cosh.
+- Overall MAE: **0,9130**; được dùng cho XAI/AI Agent demo.
 
 ### Visual chính
 
-Một comparison dashboard: bên trái per-target bar chart của EXP_041B; bên phải card “Demo checkpoint lineage” EXP_050C → EXP_060A → `sample_0000`.
+Hai comparison card rõ ràng: “Best aggregate Validation” và “Demo/reference checkpoint”, mỗi card chỉ nêu configuration, criterion và Metric chính.
 
 ### Dữ liệu / Artifact
 
 - `metrics/metrics_EXP_041B_bestimage_besttext_crossattention_mse.json`
 - `metrics/metrics_EXP_050C_bestfusion_logcosh.json`
 - `metrics/metrics_EXP_060A_bestsequential_full_configuration.json`
-- `notebook/EXP_060A_bestsequential_full_configuration.ipynb`
-- `xai/config.py`
 - `Success_End_to_End_XAI_AI_Agent_Sample_0000_Improved_CrossAttention.ipynb`
 
 ### Gợi ý thuyết trình
 
-EXP_060A copy toàn bộ training artifact từ EXP_050C và được chọn làm reference cho XAI Pipeline; nó không phải winner theo Mean MAE. Checkpoint này được huấn luyện với historical Cross-Attention, dù Runtime hiện dựng current token–patch class để tạo visualization.
+Hai configuration phục vụ hai criterion khác nhau: EXP_041B dẫn đầu về aggregate Validation, còn EXP_060A/EXP_050C có Overall MAE tốt hơn và là reference của demo. Gọi đúng tên từng criterion thay vì gộp cả hai thành “best model”.
 
 ---
 
@@ -493,19 +490,19 @@ Improved Cross-Attention visualization làm rõ cả Text → Image và Image �
 
 - **Text → Image:** important review word liên hệ với vùng ảnh nào?
 - **Image → Text:** selected visual patch liên hệ mạnh với từ nào?
-- SHAP: tỷ lệ Text-origin / Image-origin sau Cross-Attention.
-- LIME: Local Explanation cho đúng `sample_0000`.
+- **SHAP insight card:** Text-origin so với Image-origin contribution.
+- **LIME insight card:** từ và vùng ảnh có ảnh hưởng cục bộ mạnh nhất.
 
 ### Visual chính
 
-Hai hình Cross-Attention chiếm khoảng 70% slide: `top_tokens_patch_overlay_grid.png` và `top_patches_token_rankings.png`; SHAP và LIME chỉ là hai summary card nhỏ ở hàng dưới.
+Hai improved Cross-Attention visualization chiếm **75–80% diện tích slide**: `top_tokens_patch_overlay_grid.png` và `top_patches_token_rankings.png`. Phần **20–25%** còn lại chỉ dành cho hai insight card SHAP/LIME; không đặt full plot lên main slide.
 
 ### Dữ liệu / Artifact
 
 - `/content/drive/MyDrive/SE365/experiments/EXP_060A_bestsequential_full_configuration/xai/cross_attention/sample_0000/top_tokens_patch_overlay_grid.png`
 - `/content/drive/MyDrive/SE365/experiments/EXP_060A_bestsequential_full_configuration/xai/cross_attention/sample_0000/top_patches_token_rankings.png`
-- `/content/drive/MyDrive/SE365/demo_e2e/sample_0000/sample_0000_shap_analysis.png`
-- `/content/drive/MyDrive/SE365/demo_e2e/sample_0000/sample_0000_lime_4panel.png`
+- `/content/drive/MyDrive/SE365/experiments/EXP_060A_bestsequential_full_configuration/xai/shap/sample_0000/shap_modality_contribution.json`
+- `/content/drive/MyDrive/SE365/experiments/EXP_060A_bestsequential_full_configuration/xai/lime/sample_0000/sample_0000_lime_text_overall_weights.json`
 - **Trạng thái:** Runtime required; không dùng raw matrix hoặc bipartite graph cũ làm Visual chính.
 
 ### Gợi ý thuyết trình
@@ -555,7 +552,7 @@ Các giới hạn được xác định rõ để khoanh vùng điều dự án 
 
 - Một platform/domain; review và ảnh không phải lúc nào cũng đồng nhất.
 - Weak Label có provenance nhưng vẫn chịu lỗi phrase, negation và discourse.
-- Chưa có Multi-seed, Locked Test package và controlled rerun cho token–patch.
+- Current token–patch implementation chưa có controlled rerun đồng bộ; Multi-seed và Locked Test package còn thiếu.
 - Attention không chứng minh causality; SHAP và LIME là approximation.
 - AI Agent vẫn cần grounding validation và Human Review.
 
@@ -566,9 +563,8 @@ Limitation–impact matrix gồm năm hàng: nguồn giới hạn, tác động 
 ### Dữ liệu / Artifact
 
 - `data_processed/overall_satisfaction_rule_analysis.md`
-- `notebook/EXP_050C_truecrossattn_logcosh.ipynb` — chưa chạy, không có output.
-- Git history của `Models/CrossAttentionFusion.py`.
-- Metadata của notebook demo: 0 executed cell, 0 output block.
+- Dataset, experiment và architecture provenance trong Backup B3–B4.
+- Runtime XAI/AI Agent Evidence package sau khi notebook demo được chạy và kiểm tra.
 
 ### Gợi ý thuyết trình
 
@@ -584,10 +580,9 @@ Lộ trình tiếp theo ưu tiên củng cố Evidence trước, đánh giá tru
 
 ### Nội dung trên slide
 
-- **P0 — Experimental Evidence:** version split; rerun token–patch; Multi-seed; Locked Test; lưu prediction, config và hash.
-- **P1 — Trustworthiness:** human audit Weak Label; Human Evaluation XAI/Agent; stability, faithfulness, uncertainty và conflict detection.
-- **P2 — Expansion:** thêm thành phố/platform; vision–language pretraining; target-conditioned Cross-Attention; tối ưu inference.
-- Đích đến: web demo có Evidence traceability từ report về Artifact và Checkpoint.
+- **P0 — Strengthen experimental evidence:** freeze split, rerun current token–patch model; Multi-seed + Locked Test evaluation.
+- **P1 — Improve trustworthiness:** Human Evaluation cho label và explanation; faithfulness, stability, uncertainty analysis.
+- **P2 — Expand the system:** mở rộng Dataset; deployment-ready demo có Evidence traceability.
 
 ### Visual chính
 
@@ -597,11 +592,11 @@ Three-horizon roadmap P0 → P1 → P2, mỗi horizon có một deliverable đo 
 
 - `Figures/Figure_7_1_Proposed_Deployment_Architecture.png`
 - `Trainer.py`, `test.py`
-- Artifact cần tạo: split manifest, `test_metrics.json`, prediction CSV, Checkpoint/config hash, Human Evaluation form.
+- Artifact cần tạo: versioned experiment package, Human Evaluation protocol và deployment Evidence contract.
 
 ### Gợi ý thuyết trình
 
-P0 là điều kiện trước khi đưa ra final generalization claim. P1 kiểm tra explanation có hữu ích và faithful hay không; P2 chỉ bắt đầu khi Evidence contract đã ổn định.
+P0 cần lưu prediction, config cùng hash của split và Checkpoint để kết quả có thể tái lập. P1 có thể bổ sung text–image conflict detection; P2 xem xét vision–language pretraining, target-conditioned Cross-Attention và tối ưu inference sau khi Evidence contract ổn định.
 
 ---
 
@@ -609,14 +604,14 @@ P0 là điều kiện trước khi đưa ra final generalization claim. P1 kiể
 
 ### Thông điệp chính
 
-Đề tài kết nối Dataset, Controlled Experiments, Multi-level XAI và Evidence-grounded AI Agent thành một hệ thống nghiên cứu thống nhất.
+Giá trị của hệ thống không chỉ nằm ở việc dự đoán đúng bao nhiêu, mà còn ở khả năng truy vết vì sao model đưa ra Prediction đó.
 
 ### Nội dung trên slide
 
-- **Dataset:** 9.946 valid review, 22.150 cleaned image record.
-- **Model & Experiments:** 20 Validation artifact; best recorded Mean MAE **1,1079**.
-- **Multi-level XAI:** năm method từ image region đến local perturbation.
-- **AI Agent:** Reasoning Graph + Customer View + Technical View có validation warning.
+- **Dataset:** 9.946 review hợp lệ; 22.150 image record sau Data Cleaning.
+- **Model & Experiments:** 20 artifact chứa Metric Validation; best recorded Mean MAE **1,1079**.
+- **Multi-level XAI:** năm phương pháp từ image region đến local perturbation.
+- **Evidence-grounded AI Agent:** Reasoning Graph, Customer View và Technical View có validation warning.
 
 ### Visual chính
 
@@ -631,7 +626,7 @@ Bốn pillar — Dataset, Model & Experiments, Multi-level XAI, Evidence-grounde
 
 ### Gợi ý thuyết trình
 
-Kết thúc bằng system-level contribution, không bằng chênh lệch metric rất nhỏ. Câu chốt: **“Prediction có giá trị hơn khi đường đi từ dữ liệu, model, Evidence đến explanation đều có thể kiểm tra.”**
+Kết thúc bằng system-level contribution, không bằng chênh lệch Metric rất nhỏ. Câu chốt: **“Từ dữ liệu đến Prediction, từ Prediction đến Evidence, và từ Evidence đến Explanation — toàn bộ Pipeline đều được thiết kế để có thể kiểm tra.”**
 
 ---
 
@@ -669,7 +664,7 @@ Metric file đầy đủ nằm trong `metrics/`. Không dùng bảng Test từ c
 | 11 | Text Encoder lollipop chart | EXP_020B/030B/030D metric JSON | Must generate |
 | 12 | Fusion dot plot | EXP_030B/040B/040C/041A/041B metric JSON | Must generate |
 | 13 | Loss heatmap table | EXP_041B/050B/050C/051D metric JSON | Must generate |
-| 14 | Best metric vs demo checkpoint dashboard | EXP_041B, EXP_050C, EXP_060A + notebook lineage | Must generate |
+| 14 | Hai card: best aggregate vs demo/reference | Metric JSON của EXP_041B, EXP_050C và EXP_060A | Must generate |
 | 15 | Prediction, Grad-CAM, word Attention | `demo_e2e/sample_0000/` và `xai/.../sample_0000/` | Runtime required |
 | 16 | Hai improved Cross-Attention figure + SHAP/LIME summary | Exact Runtime paths trong Slide 16 | Runtime required |
 | 17 | Customer View / Technical View screenshot | `agent_reports/sample_0000/` | Runtime/API key required |
@@ -716,7 +711,7 @@ Dùng slide này khi giảng viên hỏi về Promising Combination Validation. 
 
 ### Thông điệp chính
 
-Toàn bộ 20 metric artifact dùng cùng schema năm target và được sắp theo Mean MAE.
+Toàn bộ 20 artifact chứa Metric dùng cùng schema năm target và được sắp theo Mean MAE.
 
 ### Nội dung trên slide
 
@@ -766,9 +761,9 @@ Các con số Dataset không mâu thuẫn; chúng thuộc các stage và version
 ### Nội dung trên slide
 
 - Raw: 24.599 ảnh từ 11.111 review.
-- Cleaned: 22.150 image record, 6.082 review có ảnh.
+- Cleaned: 22.150 image record sau Data Cleaning, 6.082 review có ảnh.
 - Required-field filtering: 22.146 image record.
-- Current grouping: 6.080 review-level sample → 4.864/608/608.
+- Current grouping: 6.080 sample ở cấp review → 4.864/608/608.
 - Recorded experiment package: 6.000 sample → **4.800/600/600**.
 
 ### Visual chính
@@ -833,7 +828,8 @@ Demo lưu cả lecturer-facing visual và machine-readable Evidence để mọi 
 - Grad-CAM: per-image Overall overlay + `metadata.json`.
 - Attention: word bar + `word_importance.json` + raw tensor.
 - Cross-Attention: hai improved figure + Top-K JSON + raw NPZ.
-- SHAP: per-target contribution JSON + raw values; LIME: text/image output.
+- SHAP: insight card trên main slide; full `sample_0000_shap_analysis.png` ở Backup.
+- LIME: insight card trên main slide; full `sample_0000_lime_4panel.png` ở Backup.
 - Agent: JSON report + Vietnamese Markdown report + validation warning.
 
 ### Visual chính
@@ -844,6 +840,8 @@ Artifact tree cho duy nhất `sample_0000`, phân biệt PNG dùng trình bày v
 
 - `Success_End_to_End_XAI_AI_Agent_Sample_0000_Improved_CrossAttention.ipynb`
 - `xai/case_study.py`
+- `/content/drive/MyDrive/SE365/demo_e2e/sample_0000/sample_0000_shap_analysis.png`
+- `/content/drive/MyDrive/SE365/demo_e2e/sample_0000/sample_0000_lime_4panel.png`
 - Runtime folders dưới `EXP_060A.../xai/` và `demo_e2e/`.
 
 ### Gợi ý thuyết trình
