@@ -161,8 +161,8 @@ Toàn bộ pipeline huấn luyện chạy qua hai script chính: `main.py` (trai
 
 ```bash
 # 1. Clone repo
-git clone <repo-url>
-cd SE
+lechihoang/SE365 https://github.com/lechihoang/SE365
+cd SE365
 
 # 2. Tạo virtual environment
 python3 -m venv .venv
