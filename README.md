@@ -10,6 +10,56 @@ Dự án xây dựng mô hình Phân tích Cảm xúc Đa phương thức (Multi
 
 ---
 
+## Cấu trúc thư mục
+
+```text
+.
+├── agent/            # Mã nguồn cho AI Agent tự động giải thích mô hình
+├── data/             # Thư mục chứa dữ liệu tổng hợp và hình ảnh
+├── data_processed/   # Dữ liệu sau khi làm sạch và thêm nhãn
+├── data_raw/         # Dữ liệu gốc thu thập từ Foody
+├── diagrams/         # Biểu đồ kiến trúc hệ thống
+├── doc/              # Tài liệu hướng dẫn và tham khảo
+├── Figures/          # Hình ảnh xuất ra từ các quy trình XAI/Agent
+├── metrics/          # Kết quả đánh giá của các thử nghiệm (JSON)
+├── Models/           # Định nghĩa các mô hình Text, Image và Fusion
+├── notebook/         # Thư mục chứa các file jupyter notebook:
+│   ├── crawl_data_from_foody.ipynb                    # Script thu thập dữ liệu từ Foody
+│   ├── clean_foody_dataset.ipynb                      # Tiền xử lý, làm sạch và chia split dữ liệu
+│   ├── 01_generate_overall_satisfaction.ipynb         # Sinh nhãn overall_satisfaction
+│   ├── EXP_010_text_only_xlmr_mse.ipynb               # Phase 1: Baseline Text-only (XLM-R)
+│   ├── EXP_011_image_only_convnext_mse.ipynb          # Phase 1: Baseline Image-only (ConvNeXt)
+│   ├── EXP_012_multimodal_convnext_xlmr_concat_mse.ipynb # Phase 1: Baseline Multimodal (Concat)
+│   ├── EXP_020B_swinb_xlmr_concat_mse.ipynb           # Phase 2: Thử nghiệm Image Encoder Swin-B
+│   ├── EXP_020D_efficientnetb3_xlmr_concat_mse.ipynb  # Phase 2: Thử nghiệm Image Encoder EfficientNet-B3
+│   ├── EXP_020E_siglip_xlmr_concat_mse.ipynb          # Phase 2: Thử nghiệm Image Encoder SigLIP
+│   ├── EXP_030B_bestimage_phobert_concat_mse.ipynb    # Phase 3: Thử nghiệm Text Encoder PhoBERT
+│   ├── EXP_030D_bestimage_visobert_concat_mse.ipynb   # Phase 3: Thử nghiệm Text Encoder ViSoBERT
+│   ├── EXP_040B_bestimage_besttext_gmu_mse.ipynb      # Phase 4: Thử nghiệm Fusion GMU
+│   ├── EXP_040C_bestimage_besttext_gatedcrossmodal_mse.ipynb # Phase 4: Thử nghiệm Fusion Gated Cross-Modal
+│   ├── EXP_041A_bestimage_besttext_film_mse.ipynb     # Phase 4: Thử nghiệm Fusion FiLM
+│   ├── EXP_041B_bestimage_besttext_crossattention_mse.ipynb # Phase 4: Thử nghiệm Fusion Cross-Attention
+│   ├── EXP_050B_bestfusion_huber.ipynb                # Phase 5: Thử nghiệm Loss Huber
+│   ├── EXP_050C_bestfusion_logcosh.ipynb              # Phase 5: Thử nghiệm Loss Log-Cosh
+│   ├── EXP_051D_bestfusion_uncertaintyweighted.ipynb  # Phase 5: Thử nghiệm Loss Uncertainty Weighted
+│   ├── EXP_060A_bestsequential_full_configuration.ipynb # Phase 6: Đánh giá cấu hình tốt nhất (từ Phase 1-5)
+│   ├── EXP_060B_swinb_visobert_gmu_uncertainty.ipynb  # Phase 6: Đánh giá cấu hình thay thế B
+│   ├── EXP_060C_efficientnetb3_phobert_film_huber.ipynb # Phase 6: Đánh giá cấu hình thay thế C
+│   ├── EXP_060D_efficientnetb3_visobert_crossattention_logcosh.ipynb # Phase 6: Đánh giá cấu hình thay thế D
+│   ├── EXP_060E_convnext_phobert_gatedcrossmodal_autoweight.ipynb # Phase 6: Đánh giá cấu hình thay thế E
+│   ├── generate_experiment_leaderboard.ipynb          # Tổng hợp metrics tạo bảng xếp hạng (leaderboard)
+│   └── demo_single_sample_exp060A.ipynb               # Demo dự đoán bằng mô hình tốt nhất
+├── src/              # Mã nguồn phụ trợ (ví dụ: Dataset class)
+├── xai/              # Module Explainable AI (GradCAM, LIME, SHAP, Attention)
+├── Config.py         # Cấu hình siêu tham số
+├── main.py           # Script huấn luyện mô hình
+├── test.py           # Script đánh giá mô hình trên tập Test
+├── Trainer.py        # Vòng lặp huấn luyện (PyTorch)
+└── requirements.txt  # Danh sách các thư viện phụ thuộc
+```
+
+---
+
 ## Dataset
 
 Dữ liệu được thu thập từ Foody thông qua [crawl_data_from_foody.ipynb](notebook/crawl_data_from_foody.ipynb) và làm sạch trong [clean_foody_dataset.ipynb](notebook/clean_foody_dataset.ipynb). Nhãn `overall_satisfaction` được sinh thêm từ [01_generate_overall_satisfaction.ipynb](notebook/01_generate_overall_satisfaction.ipynb). Dữ liệu chia thành 3 tập: Train, Validation, Test.
